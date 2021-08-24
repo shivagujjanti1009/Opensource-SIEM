@@ -29,6 +29,7 @@
 
 
 #define PERMS (AUDIT_PERM_WRITE | AUDIT_PERM_ATTR)
+#define SYSCHECK_MODULE_TAG "wazuh-modulesd:syscheck"
 
 extern unsigned int count_reload_retries;
 
@@ -106,7 +107,8 @@ void test_filterkey_audit_events_custom(void **state) {
     syscheck.audit_key[0] = calloc(strlen(key) + 2, sizeof(char));
     snprintf(syscheck.audit_key[0], strlen(key) + 1, "%s", key);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"test_key\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"test_key\"'");
 
     ret = filterkey_audit_events(event);
 
@@ -142,7 +144,8 @@ void test_filterkey_audit_events_hc(void **state) {
     int ret;
     char * event = "type=LOGIN msg=audit(1571145421.379:659): pid=16455 uid=0 old-auid=4294967295 auid=0 tty=(none) old-ses=4294967295 ses=57 key=\"wazuh_hc\"";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_hc\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_hc\"'");
 
     ret = filterkey_audit_events(event);
 
@@ -156,7 +159,8 @@ void test_filterkey_audit_events_fim(void **state) {
     int ret;
     char * event = "type=LOGIN msg=audit(1571145421.379:659): pid=16455 uid=0 old-auid=4294967295 auid=0 tty=(none) old-ses=4294967295 ses=57 key=\"wazuh_fim\"";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
 
     ret = filterkey_audit_events(event);
 
@@ -288,10 +292,12 @@ void test_get_process_parent_info_failed(void **state) {
     parent_cwd = malloc(10);
     errno = 17;
     will_return(__wrap_readlink, -1);
-    expect_string(__wrap__mdebug1, formatted_msg, "Failure to obtain the name of the process: '1515'. Error: File exists");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "Failure to obtain the name of the process: '1515'. Error: File exists");
 
     will_return(__wrap_readlink, -1);
-    expect_string(__wrap__mdebug1, formatted_msg, "Failure to obtain the cwd of the process: '1515'. Error: File exists");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "Failure to obtain the cwd of the process: '1515'. Error: File exists");
     get_parent_process_info("1515", &parent_name, &parent_cwd);
     errno = 0;
 
@@ -348,14 +354,16 @@ void test_audit_parse(void **state) {
         type=PROCTITLE msg=audit(1571914029.306:3004254): proctitle=726D0074657374 \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
 
     expect_value(__wrap_get_user, uid, 0);
     will_return(__wrap_get_user, strdup("root"));
     expect_value(__wrap_get_user, uid, 0);
     will_return(__wrap_get_user, strdup("root"));
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6334): Audit: Invalid 'auid' value read. Check Audit configuration (PAM).");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6334): Audit: Invalid 'auid' value read. Check Audit configuration (PAM).");
 
     expect_value(__wrap_get_group, gid, 0);
     will_return(__wrap_get_group, strdup("root"));
@@ -363,7 +371,8 @@ void test_audit_parse(void **state) {
     will_return(__wrap_readlink, 0);
     will_return(__wrap_readlink, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6247): audit_event: uid=root, auid=, euid=root, gid=root, pid=44082, ppid=3211, inode=19, path=/root/test/test, pname=74657374C3B1");
 
     expect_string(__wrap_realpath, path, "/root/test/test");
@@ -394,7 +403,8 @@ void test_audit_parse3(void **state) {
         type=PROCTITLE msg=audit(1571914029.306:3004254): proctitle=726D0074657374 \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
 
     expect_value(__wrap_get_user, uid, 0);
     will_return(__wrap_get_user, strdup("root"));
@@ -407,7 +417,8 @@ void test_audit_parse3(void **state) {
     will_return(__wrap_readlink, 0);
     will_return(__wrap_readlink, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6247): audit_event: uid=root, auid=, euid=root, gid=root, pid=44082, ppid=3211, inode=28, path=/root/test/test, pname=74657374C3B1");
 
     expect_value(__wrap_fim_whodata_event, w_evt->process_id, 44082);
@@ -436,7 +447,8 @@ void test_audit_parse4(void **state) {
         type=PROCTITLE msg=audit(1571923546.947:3004294): proctitle=6D760066696C655FC3B1002E2E2F74657374C3B1322F66696C655FC3B163 \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
 
     expect_value(__wrap_get_user, uid, 0);
     will_return(__wrap_get_user, strdup("root"));
@@ -451,9 +463,11 @@ void test_audit_parse4(void **state) {
     will_return(__wrap_readlink, 0);
     will_return(__wrap_readlink, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6248): audit_event_1/2: uid=root, auid=root, euid=root, gid=root, pid=51452, ppid=3212, inode=19, path=/root/test/testñ/test, pname=file_ñ");
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6249): audit_event_2/2: uid=root, auid=root, euid=root, gid=root, pid=51452, ppid=3212, inode=19, path=/root/test/testñ/folder/test, pname=file_ñ");
 
     expect_value(__wrap_fim_whodata_event, w_evt->process_id, 51452);
@@ -493,7 +507,8 @@ void test_audit_parse_hex(void **state) {
         type=PROCTITLE msg=audit(1571923546.947:3004294): proctitle=6D760066696C655FC3B1002E2E2F74657374C3B1322F66696C655FC3B163 \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
 
     expect_value(__wrap_get_user, uid, 0);
     will_return(__wrap_get_user, strdup("root"));
@@ -508,9 +523,11 @@ void test_audit_parse_hex(void **state) {
     will_return(__wrap_readlink, 0);
     will_return(__wrap_readlink, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6248): audit_event_1/2: uid=root, auid=root, euid=root, gid=root, pid=51452, ppid=3212, inode=29, path=/root/test/testñ/file_ñ, pname=file_ñ");
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6249): audit_event_2/2: uid=root, auid=root, euid=root, gid=root, pid=51452, ppid=3212, inode=29, path=/root/test/testñ2/file_ñc, pname=file_ñ");
 
     expect_value(__wrap_fim_whodata_event, w_evt->process_id, 51452);
@@ -545,7 +562,8 @@ void test_audit_parse_empty_fields(void **state) {
         type=PROCTITLE msg=audit(1571914029.306:3004254): proctitle=726D0074657374 \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
 
     audit_parse(buffer);
 }
@@ -556,10 +574,12 @@ void test_audit_parse_delete(void **state) {
 
     char * buffer = "type=CONFIG_CHANGE msg=audit(1571920603.069:3004276): auid=0 ses=5 op=\"remove_rule\" key=\"wazuh_fim\" list=4 res=1";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
 
     will_return(__wrap_fim_manipulated_audit_rules, 0);
-    expect_string(__wrap__mwarn, formatted_msg, "(6911): Detected Audit rules manipulation: Audit rules removed.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6911): Detected Audit rules manipulation: Audit rules removed.");
 
     expect_string(__wrap_SendMSG, message, "wazuh: Audit: Detected rules manipulation: Audit rules removed");
     expect_string(__wrap_SendMSG, locmsg, SYSCHECK);
@@ -578,10 +598,12 @@ void test_audit_parse_delete_recursive(void **state) {
 
     count_reload_retries = 0;
     // In audit_reload_rules()
-    expect_string_count(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'", 5);
+    expect_string_count(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG, 5);
+    expect_string_count(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'", 5);
 
     will_return_count(__wrap_fim_manipulated_audit_rules, 0, 5);
-    expect_string_count(__wrap__mwarn, formatted_msg, FIM_WARN_AUDIT_RULES_MODIFIED, 5);
+    expect_string_count(__wrap__mtwarn, tag, SYSCHECK_MODULE_TAG, 5);
+    expect_string_count(__wrap__mtwarn, formatted_msg, FIM_WARN_AUDIT_RULES_MODIFIED, 5);
     expect_function_calls(__wrap_fim_audit_reload_rules, 4);
 
     expect_value(__wrap_atomic_int_set, atomic, &audit_thread_active);
@@ -616,7 +638,8 @@ void test_audit_parse_mv(void **state) {
         type=PROCTITLE msg=audit(1571925844.299:3004308): proctitle=6D76002E2F7465737400666F6C646572 \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
 
     expect_value(__wrap_get_user, uid, 30);
     will_return(__wrap_get_user, strdup("user30"));
@@ -631,7 +654,8 @@ void test_audit_parse_mv(void **state) {
     will_return(__wrap_readlink, 0);
     will_return(__wrap_readlink, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6247): audit_event: uid=user30, auid=user20, euid=user50, gid=src, pid=52277, ppid=3210, inode=28, path=/root/test/folder/test, pname=/usr/bin/mv");
 
     expect_value(__wrap_fim_whodata_event, w_evt->process_id, 52277);
@@ -662,7 +686,8 @@ void test_audit_parse_mv_hex(void **state) {
         type=PROCTITLE msg=audit(1571925844.299:3004308): proctitle=6D76002E2F7465737400666F6C646572 \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
 
     expect_value(__wrap_get_user, uid, 30);
     will_return(__wrap_get_user, strdup("user30"));
@@ -677,7 +702,8 @@ void test_audit_parse_mv_hex(void **state) {
     will_return(__wrap_readlink, 0);
     will_return(__wrap_readlink, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6247): audit_event: uid=user30, auid=user20, euid=user50, gid=src, pid=52277, ppid=3210, inode=28, path=/root/test/folder/test, pname=/usr/bin/mv");
 
     expect_value(__wrap_fim_whodata_event, w_evt->process_id, 52277);
@@ -706,7 +732,8 @@ void test_audit_parse_rm(void **state) {
         type=PROCTITLE msg=audit(1571988027.797:3004340): proctitle=726D002D726600666F6C6465722F \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
 
     expect_value(__wrap_get_user, uid, 30);
     will_return(__wrap_get_user, strdup("user30"));
@@ -721,7 +748,8 @@ void test_audit_parse_rm(void **state) {
     will_return(__wrap_readlink, 0);
     will_return(__wrap_readlink, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6247): audit_event: uid=user30, auid=daemon, euid=daemon, gid=tty, pid=56650, ppid=3211, inode=24, path=/root/test/, pname=/usr/bin/rm");
 
     expect_value(__wrap_fim_whodata_event, w_evt->process_id, 56650);
@@ -748,7 +776,8 @@ void test_audit_parse_chmod(void **state) {
         type=PROCTITLE msg=audit(1571992092.822:3004348): proctitle=63686D6F6400373737002F726F6F742F746573742F66696C65 \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
 
     expect_value(__wrap_get_user, uid, 99);
     will_return(__wrap_get_user, strdup("user99"));
@@ -763,7 +792,8 @@ void test_audit_parse_chmod(void **state) {
     will_return(__wrap_readlink, 0);
     will_return(__wrap_readlink, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6247): audit_event: uid=user99, auid=lp, euid=user29, gid=, pid=58280, ppid=3211, inode=19, path=/root/test/file, pname=/usr/bin/chmod");
 
 
@@ -793,8 +823,10 @@ void test_audit_parse_rm_hc(void **state) {
         type=PROCTITLE msg=audit(1571988027.797:3004340): proctitle=726D002D726600666F6C6465722F \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_hc\"'");
-    expect_string(__wrap__mdebug2, formatted_msg, "(6253): Whodata health-check: Detected file deletion event (263)");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_hc\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6253): Whodata health-check: Detected file deletion event (263)");
 
     audit_parse(buffer);
 }
@@ -812,8 +844,10 @@ void test_audit_parse_add_hc(void **state) {
         type=PROCTITLE msg=audit(1571988027.797:3004340): proctitle=726D002D726600666F6C6465722F \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_hc\"'");
-    expect_string(__wrap__mdebug2, formatted_msg, "(6252): Whodata health-check: Detected file creation event (257)");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_hc\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6252): Whodata health-check: Detected file creation event (257)");
 
     expect_value(__wrap_atomic_int_set, atomic, &audit_health_check_creation);
     will_return(__wrap_atomic_int_set, 1);
@@ -834,8 +868,10 @@ void test_audit_parse_unknown_hc(void **state) {
         type=PROCTITLE msg=audit(1571988027.797:3004340): proctitle=726D002D726600666F6C6465722F \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_hc\"'");
-    expect_string(__wrap__mdebug2, formatted_msg, "(6254): Whodata health-check: Unrecognized event (90)");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_hc\"'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6254): Whodata health-check: Unrecognized event (90)");
 
     audit_parse(buffer);
 }
@@ -853,8 +889,10 @@ void test_audit_parse_delete_folder(void **state) {
         type=PROCTITLE msg=audit(1572878838.610:220): proctitle=726D002D72660074657374 \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
-    expect_string(__wrap__minfo, formatted_msg, "(6027): Monitored directory '/root/test' was removed: Audit rule removed.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6027): Monitored directory '/root/test' was removed: Audit rule removed.");
 
     expect_value(__wrap_get_user, uid, 0);
     will_return(__wrap_get_user, strdup("root"));
@@ -869,7 +907,8 @@ void test_audit_parse_delete_folder(void **state) {
     will_return(__wrap_readlink, 0);
     will_return(__wrap_readlink, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6247): audit_event: uid=root, auid=root, euid=root, gid=root, pid=62845, ppid=4340, inode=110, path=/root/test, pname=/usr/bin/rm");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6247): audit_event: uid=root, auid=root, euid=root, gid=root, pid=62845, ppid=4340, inode=110, path=/root/test, pname=/usr/bin/rm");
 
     expect_string(__wrap_realpath, path, "/root/test");
     will_return(__wrap_realpath, strdup("/root/test"));
@@ -905,8 +944,10 @@ void test_audit_parse_delete_folder_hex(void **state) {
         type=PROCTITLE msg=audit(1572878838.610:220): proctitle=726D002D72660074657374 \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
-    expect_string(__wrap__minfo, formatted_msg, "(6027): Monitored directory '/root/test/testñ' was removed: Audit rule removed.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6027): Monitored directory '/root/test/testñ' was removed: Audit rule removed.");
 
     expect_value(__wrap_get_user, uid, 0);
     will_return(__wrap_get_user, strdup("root"));
@@ -921,7 +962,8 @@ void test_audit_parse_delete_folder_hex(void **state) {
     will_return(__wrap_readlink, 0);
     will_return(__wrap_readlink, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6247): audit_event: uid=root, auid=root, euid=root, gid=root, pid=62845, ppid=4340, inode=110, path=/root/test, pname=/usr/bin/rm");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6247): audit_event: uid=root, auid=root, euid=root, gid=root, pid=62845, ppid=4340, inode=110, path=/root/test, pname=/usr/bin/rm");
 
     expect_string(__wrap_realpath, path, "/root/test");
     will_return(__wrap_realpath, strdup("/root/test"));
@@ -958,11 +1000,14 @@ void test_audit_parse_delete_folder_hex3_error(void **state) {
         type=PROCTITLE msg=audit(1572878838.610:220): proctitle=726D002D72660074657374 \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '0'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '0'");
 
     will_return(__wrap_fim_manipulated_audit_rules, 0);
-    expect_string(__wrap__mwarn, formatted_msg, "(6911): Detected Audit rules manipulation: Audit rules removed.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6911): Detected Audit rules manipulation: Audit rules removed.");
     expect_function_call(__wrap_fim_audit_reload_rules);
 
     expect_string(__wrap_SendMSG, message, "wazuh: Audit: Detected rules manipulation: Audit rules removed");
@@ -983,11 +1028,16 @@ void test_audit_parse_delete_folder_hex3_error(void **state) {
     will_return(__wrap_readlink, 0);
     will_return(__wrap_readlink, 0);
 
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '1'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '2'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '3'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '4'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '5'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '1'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '2'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '3'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '4'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '5'");
 
     audit_parse(buffer);
 }
@@ -1007,11 +1057,14 @@ void test_audit_parse_delete_folder_hex4_error(void **state) {
         type=PROCTITLE msg=audit(1572878838.610:220): proctitle=726D002D72660074657374 \
     ";
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '0'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '0'");
 
     will_return(__wrap_fim_manipulated_audit_rules, 0);
-    expect_string(__wrap__mwarn, formatted_msg, "(6911): Detected Audit rules manipulation: Audit rules removed.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6911): Detected Audit rules manipulation: Audit rules removed.");
     expect_function_call(__wrap_fim_audit_reload_rules);
 
     expect_string(__wrap_SendMSG, message, "wazuh: Audit: Detected rules manipulation: Audit rules removed");
@@ -1032,12 +1085,18 @@ void test_audit_parse_delete_folder_hex4_error(void **state) {
     will_return(__wrap_readlink, 0);
     will_return(__wrap_readlink, 0);
 
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '1'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '2'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '3'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '4'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '5'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '6'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '1'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '2'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '3'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '4'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '5'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '6'");
 
     audit_parse(buffer);
 }
@@ -1058,11 +1117,14 @@ void test_audit_parse_delete_folder_hex5_error(void **state) {
         type=PROCTITLE msg=audit(1572878838.610:220): proctitle=726D002D72660074657374 \
     ";
 
-   expect_string(__wrap__mdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '0'");
+   expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+   expect_string(__wrap__mtdebug2, formatted_msg, "(6251): Match audit_key: 'key=\"wazuh_fim\"'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '0'");
 
     will_return(__wrap_fim_manipulated_audit_rules, 0);
-    expect_string(__wrap__mwarn, formatted_msg, "(6911): Detected Audit rules manipulation: Audit rules removed.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6911): Detected Audit rules manipulation: Audit rules removed.");
     expect_function_call(__wrap_fim_audit_reload_rules);
 
     expect_string(__wrap_SendMSG, message, "wazuh: Audit: Detected rules manipulation: Audit rules removed");
@@ -1083,11 +1145,16 @@ void test_audit_parse_delete_folder_hex5_error(void **state) {
     will_return(__wrap_readlink, 0);
     will_return(__wrap_readlink, 0);
 
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '1'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '2'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '3'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '4'");
-    expect_string(__wrap__merror, formatted_msg, "Error found while decoding HEX bufer: '7'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '1'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '2'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '3'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '4'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error found while decoding HEX bufer: '7'");
 
     audit_parse(buffer);
 }

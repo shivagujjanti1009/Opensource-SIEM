@@ -232,7 +232,7 @@ void *read_nmapg(logreader *lf, int *rc, int drop_it) {
 
             p = __get_port(p, proto, port, 9);
             if (!p) {
-                mdebug1("Bad formated nmap grepable file (port).");
+                mtdebug1(WM_LOGCOLLECTOR_LOGTAG, "Bad formated nmap grepable file (port).");
                 break;
             }
 
@@ -259,7 +259,7 @@ void *read_nmapg(logreader *lf, int *rc, int drop_it) {
         /* Handle errors */
 file_error:
 
-        merror("Bad formated nmap grepable file.");
+        mterror(WM_LOGCOLLECTOR_LOGTAG, "Bad formated nmap grepable file.");
         *rc = -1;
         return (NULL);
 
@@ -270,6 +270,6 @@ file_error:
         w_update_file_status(lf->file, current_position, &context);
     }
 
-    mdebug2("Read %d lines from %s", lines, lf->file);
+    mtdebug2(WM_LOGCOLLECTOR_LOGTAG, "Read %d lines from %s", lines, lf->file);
     return (NULL);
 }

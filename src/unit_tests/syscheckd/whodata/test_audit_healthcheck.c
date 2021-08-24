@@ -32,6 +32,7 @@
 
 
 #define PERMS (AUDIT_PERM_WRITE | AUDIT_PERM_ATTR)
+#define SYSCHECK_MODULE_TAG "wazuh-modulesd:syscheck"
 
 
 extern atomic_int_t audit_health_check_creation;
@@ -70,7 +71,8 @@ int __wrap_pthread_cond_timedwait(pthread_cond_t *restrict cond, pthread_mutex_t
 void prepare_audit_healthcheck_thread() {
     will_return(__wrap_audit_add_rule, -EEXIST);
 
-    expect_string(__wrap__mdebug1, formatted_msg, FIM_AUDIT_HEALTHCHECK_START);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, FIM_AUDIT_HEALTHCHECK_START);
 
     expect_function_call(__wrap_pthread_mutex_lock);
 
@@ -115,7 +117,8 @@ void test_audit_health_check_fail_to_add_rule(void **state) {
 
     will_return(__wrap_audit_add_rule, -1);
 
-    expect_string(__wrap__mdebug1, formatted_msg, FIM_AUDIT_HEALTHCHECK_RULE);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, FIM_AUDIT_HEALTHCHECK_RULE);
 
     ret = audit_health_check(123456);
 
@@ -142,7 +145,8 @@ void test_audit_health_check_fail_to_create_hc_file(void **state) {
     expect_string_count(__wrap_fopen, mode, "w", 10);
     will_return_count(__wrap_fopen, 0, 10);
 
-    expect_string_count(__wrap__mdebug1, formatted_msg, FIM_AUDIT_HEALTHCHECK_FILE, 10);
+    expect_string_count(__wrap__mtdebug1, tag, SYSCHECK_MODULE_TAG, 10);
+    expect_string_count(__wrap__mtdebug1, formatted_msg, FIM_AUDIT_HEALTHCHECK_FILE, 10);
 
     expect_value_count(__wrap_sleep, seconds, 1, 10);
     expect_value_count(__wrap_atomic_int_get, atomic, &audit_health_check_creation, 10);
@@ -150,7 +154,9 @@ void test_audit_health_check_fail_to_create_hc_file(void **state) {
     // outside do while
     expect_value(__wrap_atomic_int_get, atomic, &audit_health_check_creation);
     will_return(__wrap_atomic_int_get, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, FIM_HEALTHCHECK_CREATE_ERROR);
+
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, FIM_HEALTHCHECK_CREATE_ERROR);
 
     prepare_post_audit_healthcheck_thread();
 
@@ -188,7 +194,8 @@ void test_audit_health_check_no_creation_event_detected(void **state) {
     // outside the loop
     expect_value(__wrap_atomic_int_get, atomic, &audit_health_check_creation);
     will_return(__wrap_atomic_int_get, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, FIM_HEALTHCHECK_CREATE_ERROR);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, FIM_HEALTHCHECK_CREATE_ERROR);
 
     prepare_post_audit_healthcheck_thread();
 
@@ -227,7 +234,8 @@ void test_audit_health_check_success(void **state) {
     // outside the loop
     expect_value(__wrap_atomic_int_get, atomic, &audit_health_check_creation);
     will_return(__wrap_atomic_int_get, 1);
-    expect_string(__wrap__mdebug1, formatted_msg, FIM_HEALTHCHECK_SUCCESS);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, FIM_HEALTHCHECK_SUCCESS);
 
     prepare_post_audit_healthcheck_thread();
 

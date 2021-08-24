@@ -16,7 +16,7 @@
 #define CSYSCHECK     000000004
 #define CROOTCHECK    000000010
 #define CALERTS       000000020
-#define CLOCALFILE    000000040
+#define CLOCALFILE    000000040  // Deprecated
 #define CREMOTE       000000100
 #define CCLIENT       000000200
 #define CMAIL         000000400
@@ -32,7 +32,7 @@
 #define CAUTHD        001000000
 #define CBUFFER       002000000
 #define CCLUSTER      004000000
-#define CSOCKET       010000000
+#define CSOCKET       010000000  // Deprecated
 #define CLOGTEST      020000000
 
 #define MAX_NEEDED_TAGS 4
@@ -51,7 +51,7 @@ int ReadConfig(int modules, const char *cfgfile, void *d1, void *d2);
 
 int Read_Global(XML_NODE node, void *d1, void *d2);
 int Read_GlobalSK(XML_NODE node, void *configp, void *mailp);
-int Read_Syscheck(const OS_XML *xml, XML_NODE node, void *d1, void *d2, int modules);
+int Read_Syscheck(const OS_XML *xml, XML_NODE node, void* d1, int modules, const char alloc);
 int Read_Rootcheck(XML_NODE node, void *d1, void *d2);
 int Read_Alerts(XML_NODE node, void *d1, void *d2);
 int Read_EmailAlerts(XML_NODE node, void *d1, void *d2);
@@ -63,6 +63,7 @@ int Read_Integrator(XML_NODE node, void *config1, void *config2);
 int Read_Remote(XML_NODE node, void *d1, void *d2);
 int Read_Client(const OS_XML *xml, XML_NODE node, void *d1, void *d2);
 int Read_ClientBuffer(XML_NODE node, void *d1, void *d2);
+int ReadActiveResponsesAgent(void *d1);
 int ReadActiveResponses(XML_NODE node, void *d1, void *d2);
 int ReadActiveCommands(XML_NODE node, void *d1, void *d2);
 int Read_CReports(XML_NODE node, void *config1, void *config2);
@@ -110,9 +111,6 @@ int Test_Syscheck(const char * path);
 
 /* Verifies that the configuration for Rootcheck is correct. Return 0 on success or -1 on error.  */
 int Test_Rootcheck(const char * path);
-
-/* Verifies that the configuration for Localfile is correct. Return 0 on success or -1 on error.  */
-int Test_Localfile(const char * path);
 
 /* Verifies that the configuration for Client is correct. Return 0 on success or -1 on error.  */
 int Test_Client(const char * path);

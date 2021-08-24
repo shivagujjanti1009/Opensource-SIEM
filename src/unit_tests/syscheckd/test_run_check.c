@@ -35,7 +35,6 @@
 void set_priority_windows_thread();
 void set_whodata_mode_changes();
 #endif
-
 /* External 'static' functions prototypes */
 void fim_send_msg(char mq, const char * location, const char * msg);
 #ifdef WIN32
@@ -75,6 +74,7 @@ time_t __wrap_time(time_t *timer) {
 /* Setup/Teardown */
 
 static int setup_group(void ** state) {
+
 #ifdef TEST_WINAGENT
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
@@ -82,7 +82,6 @@ static int setup_group(void ** state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
     expect_function_call_any(__wrap_pthread_rwlock_rdlock);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6287): Reading configuration file: 'test_syscheck.conf'");
     expect_string(__wrap__mdebug1, formatted_msg, "Found ignore regex node .log$|.htm$|.jpg$|.png$|.chm$|.pnf$|.evtx$|.swp$");
     expect_string(__wrap__mdebug1, formatted_msg, "Found ignore regex node .log$|.htm$|.jpg$|.png$|.chm$|.pnf$|.evtx$|.swp$ OK?");
     expect_string(__wrap__mdebug1, formatted_msg, "Found ignore regex size 0");
@@ -95,7 +94,6 @@ static int setup_group(void ** state) {
 #else // !TEST_WINAGENT
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
-    expect_string(__wrap__mdebug1, formatted_msg, "(6287): Reading configuration file: 'test_syscheck.conf'");
     expect_string(__wrap__mdebug1, formatted_msg, "Found ignore regex node .log$|.swp$");
     expect_string(__wrap__mdebug1, formatted_msg, "Found ignore regex node .log$|.swp$ OK?");
     expect_string(__wrap__mdebug1, formatted_msg, "Found ignore regex size 0");
@@ -106,13 +104,33 @@ static int setup_group(void ** state) {
     syscheck.database = fim_db_init(FIM_DB_DISK);
 #endif // TEST_WINAGENT
 
-#if defined(TEST_AGENT) || defined(TEST_WINAGENT)
-    expect_string(__wrap__mdebug1, formatted_msg, "(6208): Reading Client Configuration [test_syscheck.conf]");
-#endif
+    will_return(__wrap_getDefine_Int, 5);
+    will_return(__wrap_getDefine_Int, 256);
+    will_return(__wrap_getDefine_Int, 1024);
+    will_return(__wrap_getDefine_Int, 600);
+#ifndef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 4096);
+#endif //TEST_WINAGENT
+#ifndef TEST_SERVER
+    will_return(__wrap_getDefine_Int, 0);
+#endif //TEST_SERVER
+#ifdef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 1024);
+#endif //TEST_WINAGENT
 
     will_return_always(__wrap_os_random, 12345);
-
-    if(Read_Syscheck_Config("test_syscheck.conf"))
+    int ret = 0;
+    OS_XML xml;
+    XML_NODE node;
+    XML_NODE chld_node;
+    OS_ReadXML("test_syscheck.conf", &xml);
+    node = OS_GetElementsbyNode(&xml, NULL);
+    chld_node = OS_GetElementsbyNode(&xml, node[0]);
+    ret = Read_Syscheck(&xml, chld_node, &syscheck, CWMODULE, 0);
+    OS_ClearNode(chld_node);
+    OS_ClearNode(node);
+    OS_ClearXML(&xml);
+    if(ret)
         fail();
 
     syscheck.realtime = (rtfim *) calloc(1, sizeof(rtfim));
@@ -338,15 +356,18 @@ void test_log_realtime_status(void **state)
 
     log_realtime_status(2);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_REALTIME_STARTED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_REALTIME_STARTED);
     log_realtime_status(1);
     log_realtime_status(1);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_REALTIME_PAUSED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_REALTIME_PAUSED);
     log_realtime_status(2);
     log_realtime_status(2);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_REALTIME_RESUMED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_REALTIME_RESUMED);
     log_realtime_status(1);
 }
 
@@ -362,7 +383,8 @@ void test_fim_send_msg_retry(void **state) {
 
     expect_w_send_sync_msg("test", SYSCHECK, SYSCHECK_MQ, -1);
 
-    expect_string(__wrap__merror, formatted_msg, QUEUE_SEND);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, QUEUE_SEND);
 
     expect_StartMQ_call(DEFAULTQUEUE, WRITE, 0);
 
@@ -375,11 +397,13 @@ void test_fim_send_msg_retry_error(void **state) {
     (void) state;
 
     expect_w_send_sync_msg("test", SYSCHECK, SYSCHECK_MQ, -1);
-    expect_string(__wrap__merror, formatted_msg, QUEUE_SEND);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, QUEUE_SEND);
 
     expect_StartMQ_call(DEFAULTQUEUE, WRITE, -1);
 
-    expect_string(__wrap__merror_exit, formatted_msg, "(1211): Unable to access queue: 'queue/sockets/queue'. Giving up.");
+    expect_string(__wrap__mterror_exit, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror_exit, formatted_msg, "(1211): Unable to access queue: 'queue/sockets/queue'. Giving up.");
 
     // This code shouldn't run
     expect_w_send_sync_msg("test", SYSCHECK, SYSCHECK_MQ, -1);
@@ -395,7 +419,8 @@ void test_fim_run_realtime_first_error(void **state) {
 
     expect_function_call(__wrap_pthread_mutex_lock);
     snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, 1);
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
     expect_function_call(__wrap_pthread_mutex_unlock);
 
     will_return(__wrap_FOREVER, 1);
@@ -403,7 +428,8 @@ void test_fim_run_realtime_first_error(void **state) {
     expect_function_call(__wrap_pthread_mutex_unlock);
 
     will_return(__wrap_select, -1);
-    expect_string(__wrap__merror, formatted_msg, FIM_ERROR_SELECT);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, FIM_ERROR_SELECT);
 
     will_return(__wrap_FOREVER, 0);
 
@@ -416,7 +442,8 @@ void test_fim_run_realtime_first_timeout(void **state) {
 
     expect_function_call(__wrap_pthread_mutex_lock);
     snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, 1);
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
     expect_function_call(__wrap_pthread_mutex_unlock);
 
     will_return(__wrap_FOREVER, 1);
@@ -437,7 +464,8 @@ void test_fim_run_realtime_first_sleep(void **state) {
     char debug_msg[OS_SIZE_128] = {0};
     expect_function_call(__wrap_pthread_mutex_lock);
     snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, 1);
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
     expect_function_call(__wrap_pthread_mutex_unlock);
 
     will_return(__wrap_FOREVER, 1);
@@ -457,7 +485,8 @@ void test_fim_run_realtime_first_process(void **state) {
 
     expect_function_call(__wrap_pthread_mutex_lock);
     snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, 1);
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
     expect_function_call(__wrap_pthread_mutex_unlock);
 
     will_return(__wrap_FOREVER, 1);
@@ -477,7 +506,8 @@ void test_fim_run_realtime_process_after_timeout(void **state) {
 
     expect_function_call(__wrap_pthread_mutex_lock);
     snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, 1);
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
     expect_function_call(__wrap_pthread_mutex_unlock);
 
     will_return(__wrap_FOREVER, 1);
@@ -511,7 +541,8 @@ void test_fim_run_realtime_w_first_timeout(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     // set_priority_windows_thread
-    expect_string(__wrap__mdebug1, formatted_msg, "(6320): Setting process priority to: '10'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6320): Setting process priority to: '10'");
     will_return(wrap_GetCurrentThread, (HANDLE)123456);
     expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_LOWEST, true);
 
@@ -527,14 +558,16 @@ void test_fim_run_realtime_w_first_timeout(void **state) {
     will_return(__wrap_FOREVER, 1);
 
     snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, added_dirs);
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
 
     expect_value(wrap_WaitForSingleObjectEx, hHandle, (DWORD)234);
     expect_value(wrap_WaitForSingleObjectEx, dwMilliseconds, SYSCHECK_WAIT * 1000);
     expect_value(wrap_WaitForSingleObjectEx, bAlertable, TRUE);
     will_return(wrap_WaitForSingleObjectEx, WAIT_FAILED);
 
-    expect_string(__wrap__merror, formatted_msg, FIM_ERROR_REALTIME_WAITSINGLE_OBJECT);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, FIM_ERROR_REALTIME_WAITSINGLE_OBJECT);
     OSList_foreach(node_it, syscheck.directories) {
         dir_it = node_it->data;
         if (dir_it->options & REALTIME_ACTIVE) {
@@ -561,7 +594,8 @@ void test_fim_run_realtime_w_wait_success(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     // set_priority_windows_thread
-    expect_string(__wrap__mdebug1, formatted_msg, "(6320): Setting process priority to: '10'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6320): Setting process priority to: '10'");
     will_return(wrap_GetCurrentThread, (HANDLE)123456);
     expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_LOWEST, true);
 
@@ -578,7 +612,8 @@ void test_fim_run_realtime_w_wait_success(void **state) {
     will_return(__wrap_FOREVER, 1);
 
     snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, added_dirs);
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
 
     expect_value(wrap_WaitForSingleObjectEx, hHandle, (DWORD)234);
     expect_value(wrap_WaitForSingleObjectEx, dwMilliseconds, SYSCHECK_WAIT * 1000);
@@ -612,7 +647,8 @@ void test_fim_run_realtime_w_sleep(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     // set_priority_windows_thread
-    expect_string(__wrap__mdebug1, formatted_msg, "(6320): Setting process priority to: '10'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6320): Setting process priority to: '10'");
     will_return(wrap_GetCurrentThread, (HANDLE)123456);
     expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_LOWEST, true);
 
@@ -668,7 +704,8 @@ void test_fim_whodata_initialize_fail_set_policies(void **state)
     }
 
     will_return(__wrap_run_whodata_scan, 1);
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
       "(6710): Failed to start the Whodata engine. Directories/files will be monitored in Realtime mode");
 
     will_return(__wrap_audit_restore, NULL);
@@ -681,7 +718,8 @@ void test_fim_whodata_initialize_fail_set_policies(void **state)
 void test_set_priority_windows_thread_highest(void **state) {
     syscheck.process_priority = -10;
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6320): Setting process priority to: '-10'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6320): Setting process priority to: '-10'");
 
     will_return(wrap_GetCurrentThread, (HANDLE)123456);
 
@@ -693,7 +731,8 @@ void test_set_priority_windows_thread_highest(void **state) {
 void test_set_priority_windows_thread_above_normal(void **state) {
     syscheck.process_priority = -8;
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6320): Setting process priority to: '-8'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6320): Setting process priority to: '-8'");
 
     will_return(wrap_GetCurrentThread, (HANDLE)123456);
     expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_ABOVE_NORMAL, true);
@@ -704,7 +743,8 @@ void test_set_priority_windows_thread_above_normal(void **state) {
 void test_set_priority_windows_thread_normal(void **state) {
     syscheck.process_priority = 0;
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6320): Setting process priority to: '0'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6320): Setting process priority to: '0'");
 
     will_return(wrap_GetCurrentThread, (HANDLE)123456);
     expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_NORMAL, true);
@@ -715,7 +755,8 @@ void test_set_priority_windows_thread_normal(void **state) {
 void test_set_priority_windows_thread_below_normal(void **state) {
     syscheck.process_priority = 2;
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6320): Setting process priority to: '2'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6320): Setting process priority to: '2'");
 
     will_return(wrap_GetCurrentThread, (HANDLE)123456);
     expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_BELOW_NORMAL, true);
@@ -726,7 +767,8 @@ void test_set_priority_windows_thread_below_normal(void **state) {
 void test_set_priority_windows_thread_lowest(void **state) {
     syscheck.process_priority = 7;
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6320): Setting process priority to: '7'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6320): Setting process priority to: '7'");
 
     will_return(wrap_GetCurrentThread, (HANDLE)123456);
     expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_LOWEST, true);
@@ -737,7 +779,8 @@ void test_set_priority_windows_thread_lowest(void **state) {
 void test_set_priority_windows_thread_idle(void **state) {
     syscheck.process_priority = 20;
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6320): Setting process priority to: '20'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6320): Setting process priority to: '20'");
 
     will_return(wrap_GetCurrentThread, (HANDLE)123456);
     expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_IDLE, true);
@@ -748,14 +791,16 @@ void test_set_priority_windows_thread_idle(void **state) {
 void test_set_priority_windows_thread_error(void **state) {
     syscheck.process_priority = 10;
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6320): Setting process priority to: '10'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6320): Setting process priority to: '10'");
 
     will_return(wrap_GetCurrentThread, (HANDLE)123456);
     expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_LOWEST, false);
 
     will_return(wrap_GetLastError, 2345);
 
-    expect_string(__wrap__merror, formatted_msg, "Can't set thread priority: 2345");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "Can't set thread priority: 2345");
 
     set_priority_windows_thread();
 }
@@ -794,9 +839,12 @@ void test_set_whodata_mode_changes(void **state) {
         expect_realtime_adddir_call(expanded_dirs[i], i % 2 == 0);
     }
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6225): The 'c:\\programdata\\microsoft\\windows\\start menu\\programs\\startup' directory starts to be monitored in real-time mode.");
-    expect_string(__wrap__merror, formatted_msg, "(6611): 'realtime_adddir' failed, the directory 'c:\\windows\\system32\\drivers\\etc' couldn't be added to real time mode.");
-    expect_string(__wrap__mdebug1, formatted_msg, "(6225): The 'c:\\windows\\system32\\wbem' directory starts to be monitored in real-time mode.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6225): The 'c:\\programdata\\microsoft\\windows\\start menu\\programs\\startup' directory starts to be monitored in real-time mode.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6611): 'realtime_adddir' failed, the directory 'c:\\windows\\system32\\drivers\\etc' couldn't be added to real time mode.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6225): The 'c:\\windows\\system32\\wbem' directory starts to be monitored in real-time mode.");
 
     set_whodata_mode_changes();
 }
@@ -844,7 +892,8 @@ void test_fim_send_sync_msg_10_eps(void ** state) {
     // We must not sleep the first 9 times
 
     for (int i = 1; i < syscheck.sync_max_eps; i++) {
-        expect_string(__wrap__mdebug2, formatted_msg, "(6317): Sending integrity control message: ");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6317): Sending integrity control message: ");
         expect_w_send_sync_msg("", location, DBSYNC_MQ, 0);
         fim_send_sync_msg( location, "");
     }
@@ -856,7 +905,8 @@ void test_fim_send_sync_msg_10_eps(void ** state) {
 #endif
 
     // After 10 times, sleep one second
-    expect_string(__wrap__mdebug2, formatted_msg, "(6317): Sending integrity control message: ");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6317): Sending integrity control message: ");
     expect_w_send_sync_msg("", location, DBSYNC_MQ, 0);
     fim_send_sync_msg( location, "");
 }
@@ -866,7 +916,8 @@ void test_fim_send_sync_msg_0_eps(void ** state) {
     syscheck.sync_max_eps = 0;
     char location[10] = "fim_file";
     // We must not sleep
-    expect_string(__wrap__mdebug2, formatted_msg, "(6317): Sending integrity control message: ");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6317): Sending integrity control message: ");
     expect_w_send_sync_msg("", location, DBSYNC_MQ, 0);
     fim_send_sync_msg(location, "");
 }
@@ -884,7 +935,8 @@ void test_send_syscheck_msg_10_eps(void ** state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     for (int i = 1; i < syscheck.max_eps; i++) {
-        expect_string(__wrap__mdebug2, formatted_msg, "(6321): Sending FIM event: {}");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6321): Sending FIM event: {}");
         expect_w_send_sync_msg("{}", SYSCHECK, SYSCHECK_MQ, 0);
         send_syscheck_msg(event);
     }
@@ -896,7 +948,8 @@ void test_send_syscheck_msg_10_eps(void ** state) {
 #endif
 
     // After 10 times, sleep one second
-    expect_string(__wrap__mdebug2, formatted_msg, "(6321): Sending FIM event: {}");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6321): Sending FIM event: {}");
     expect_w_send_sync_msg("{}", SYSCHECK, SYSCHECK_MQ, 0);
 
     send_syscheck_msg(event);
@@ -913,7 +966,8 @@ void test_send_syscheck_msg_0_eps(void ** state) {
     }
 
     // We must not sleep
-    expect_string(__wrap__mdebug2, formatted_msg, "(6321): Sending FIM event: {}");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6321): Sending FIM event: {}");
     expect_w_send_sync_msg("{}", SYSCHECK, SYSCHECK_MQ, 0);
     send_syscheck_msg(event);
 }
@@ -924,7 +978,8 @@ void test_fim_send_scan_info(void **state) {
 #ifndef TEST_WINAGENT
     will_return(__wrap_time, 1);
 #endif
-    expect_string(__wrap__mdebug2, formatted_msg, "(6321): Sending FIM event: {\"type\":\"scan_start\",\"data\":{\"timestamp\":1}}");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6321): Sending FIM event: {\"type\":\"scan_start\",\"data\":{\"timestamp\":1}}");
     expect_w_send_sync_msg(msg, SYSCHECK, SYSCHECK_MQ, 0);
     fim_send_scan_info(FIM_SCAN_START);
 }
@@ -962,7 +1017,8 @@ void test_fim_link_update_already_added(void **state) {
 
     snprintf(error_msg, OS_SIZE_128, FIM_LINK_ALREADY_ADDED, link_path);
 
-    expect_string(__wrap__mdebug1, formatted_msg, error_msg);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, error_msg);
 
     fim_link_update(link_path, affected_config);
 
@@ -1009,7 +1065,8 @@ void test_fim_link_check_delete_lstat_error(void **state) {
 
     snprintf(error_msg, OS_SIZE_128, FIM_STAT_FAILED, pointed_folder, 0, "Success");
 
-    expect_string(__wrap__mdebug1, formatted_msg, error_msg);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, error_msg);
 
     fim_link_check_delete(affected_config);
 
@@ -1080,7 +1137,8 @@ void test_fim_link_delete_range_error(void **state) {
     expect_fim_db_get_path_from_pattern(syscheck.database, "/folder/%", tmp_file, FIM_DB_DISK, FIMDB_OK);
 
     expect_wrapper_fim_db_delete_range_call(syscheck.database, FIM_DB_DISK, tmp_file, FIMDB_ERR);
-    expect_string(__wrap__merror, formatted_msg, error_msg);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, error_msg);
 
     fim_link_delete_range(((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 1)));
 }
@@ -1111,7 +1169,8 @@ void test_fim_link_reload_broken_link_already_monitored(void **state) {
 
     snprintf(error_msg, OS_SIZE_128, FIM_LINK_ALREADY_ADDED, link_path);
 
-    expect_string(__wrap__mdebug1, formatted_msg, error_msg);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, error_msg);
 
     fim_link_reload_broken_link(link_path, affected_config);
 
@@ -1157,7 +1216,8 @@ void test_check_max_fps_sleep(void **state) {
     files_read = syscheck.max_files_per_second;
 
     will_return(__wrap_gettime, last_time);
-    expect_string(__wrap__mdebug2, formatted_msg, FIM_REACHED_MAX_FPS);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, FIM_REACHED_MAX_FPS);
     check_max_fps();
 }
 

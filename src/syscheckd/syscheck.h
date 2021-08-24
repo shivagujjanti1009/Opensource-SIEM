@@ -37,9 +37,15 @@
 #define FIM_LINK S_IFLNK
 #endif
 
+#ifndef ARGV0
+#define ARGV0 "wazuh-modulesd"
+#endif
+
+#define SYSCHECK_LOGTAG ARGV0 ":syscheck" // Tag for log messages
+
 /* Global config */
 extern syscheck_config syscheck;
-extern int sys_debug_level;
+extern int wm_debug_level;
 
 typedef enum fim_event_type {
     FIM_ADD,

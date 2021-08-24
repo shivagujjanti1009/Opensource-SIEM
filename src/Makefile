@@ -649,14 +649,11 @@ settings:
 BUILD_SERVER+=wazuh-maild -
 BUILD_SERVER+=wazuh-csyslogd -
 BUILD_SERVER+=wazuh-agentlessd -
-BUILD_SERVER+=wazuh-execd -
-BUILD_SERVER+=wazuh-logcollector -
 BUILD_SERVER+=wazuh-remoted
 BUILD_SERVER+=wazuh-agentd
 BUILD_SERVER+=manage_agents
 BUILD_SERVER+=utils
 BUILD_SERVER+=active-responses
-BUILD_SERVER+=wazuh-syscheckd
 BUILD_SERVER+=wazuh-monitord
 BUILD_SERVER+=wazuh-reportd
 BUILD_SERVER+=wazuh-authd
@@ -669,9 +666,6 @@ BUILD_SERVER+=wazuh-db
 
 BUILD_AGENT+=wazuh-agentd
 BUILD_AGENT+=agent-auth
-BUILD_AGENT+=wazuh-logcollector
-BUILD_AGENT+=wazuh-syscheckd
-BUILD_AGENT+=wazuh-execd
 BUILD_AGENT+=manage_agents
 BUILD_AGENT+=active-responses
 BUILD_AGENT+=wazuh-modulesd
@@ -1280,8 +1274,8 @@ wrappers_wazuh_o := $(wrappers_wazuh_c:.c=.o)
 wrappers_wazuh_os_crypto_c := $(wildcard unit_tests/wrappers/wazuh/os_crypto/*.c)
 wrappers_wazuh_os_crypto_o := $(wrappers_wazuh_os_crypto_c:.c=.o)
 
-wrappers_wazuh_os_execd_c := $(wildcard unit_tests/wrappers/wazuh/os_execd/*.c)
-wrappers_wazuh_os_execd_o := $(wrappers_wazuh_os_execd_c:.c=.o)
+wrappers_wazuh_execd_c := $(wildcard unit_tests/wrappers/wazuh/os_execd/*.c)
+wrappers_wazuh_execd_o := $(wrappers_wazuh_execd_c:.c=.o)
 
 wrappers_wazuh_os_net_c := $(wildcard unit_tests/wrappers/wazuh/os_net/*.c)
 wrappers_wazuh_os_net_o := $(wrappers_wazuh_os_net_c:.c=.o)
@@ -1346,7 +1340,7 @@ ifneq (,$(filter ${TEST},YES yes y Y 1))
 	UNIT_TEST_WRAPPERS+=${wrappers_posix_o}
 	UNIT_TEST_WRAPPERS+=${wrappers_wazuh_o}
 	UNIT_TEST_WRAPPERS+=${wrappers_wazuh_os_crypto_o}
-	UNIT_TEST_WRAPPERS+=${wrappers_wazuh_os_execd_o}
+	UNIT_TEST_WRAPPERS+=${wrappers_wazuh_execd_o}
 	UNIT_TEST_WRAPPERS+=${wrappers_wazuh_os_net_o}
 	UNIT_TEST_WRAPPERS+=${wrappers_wazuh_os_regex_o}
 	UNIT_TEST_WRAPPERS+=${wrappers_wazuh_os_xml_o}
@@ -1431,6 +1425,44 @@ build_syscollector: build_shared_modules build_sysinfo
 	cd ${SYSCOLLECTOR} && mkdir -p build && cd build && cmake ${CMAKE_OPTS} ${SOLARIS_CMAKE_OPTS} ${SYSCOLLECTOR_TEST} ${SYSCOLLECTOR_RELEASE_TYPE} .. && ${MAKE}
 endif
 
+#### rootcheck #####
+
+rootcheck_c := $(wildcard rootcheck/*.c)
+rootcheck_o := $(rootcheck_c:.c=.o)
+rootcheck_o_lib := $(filter-out rootcheck/rootcheck-config.o, ${rootcheck_o})
+rootcheck_o_cmd := $(filter-out rootcheck/config.o, ${rootcheck_o})
+
+
+rootcheck/%.o: rootcheck/%.c
+	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"rootcheck\" -c $^ -o $@
+
+rootcheck.a: ${rootcheck_o_lib}
+	${OSSEC_LINK} $@ $^
+	${OSSEC_RANLIB} $@
+
+
+#### syscheck ######
+
+syscheck_sql := syscheckd/db/schema_fim_db.sql
+
+syscheck_c := $(wildcard syscheckd/*.c)
+syscheck_c += $(wildcard syscheckd/db/*.c)
+syscheck_c += $(wildcard syscheckd/whodata/*.c)
+syscheck_c += $(wildcard syscheckd/registry/*.c)
+
+syschecklib_o := $(syschecklib_c:.c=.o) $(syscheck_sql:.sql=.o)
+syscheck_o := $(syschecklib_o:.c=.o) $(syscheck_c:.c=.o) $(syscheck_sql:.sql=.o)
+syscheck_eventchannel_o := $(syscheck_c:.c=-event.o) $(syscheck_sql:.sql=.o)
+
+syscheckd/db/schema_fim_db.o: syscheckd/db/schema_fim_db.sql
+	${QUIET_CC}echo 'const char *schema_fim_sql = "'"`cat $< | sed s/\\\\\\\/\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\/g | tr -d \\\n`"'";' | ${MING_BASE}${CC} ${OSSEC_CFLAGS} -xc -c -o $@ -
+
+syscheckd/%.o: syscheckd/%.c
+	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-modulesd\" -c $^ -o $@
+
+syscheckd/%-event.o: syscheckd/%.c
+	${OSSEC_CC} ${OSSEC_CFLAGS} ${DEFINES_EVENTCHANNEL} -DEVENTCHANNEL_SUPPORT -DARGV0=\"wazuh-modulesd\" -c $^ -o $@
+
 #### Wazuh modules ##
 wmodules_c := $(wildcard wazuh_modules/wm*.c) $(wildcard wazuh_modules/agent_upgrade/*.c)
 
@@ -1449,7 +1481,16 @@ wmodules_o := $(wmodules_c:.c=.o)
 wazuh_modules/%.o: wazuh_modules/%.c
 	${OSSEC_CC} ${OSSEC_CFLAGS} -c $^ -o $@
 
-wmodules_dep := ${wmodules_o} ${wdblib_o}
+#### wazuh modules: execd #####
+execd_c := $(wildcard os_execd/*.c)
+execd_o := $(execd_c:.c=.o)
+
+#### wazuh modules: logcollector #####
+logcollector_c := $(wildcard logcollector/*.c)
+logcollector_o := $(logcollector_c:.c=.o)
+logcollector_eventchannel_o := $(logcollector_c:.c=-event.o)
+
+wmodules_dep := ${wmodules_o} ${wdblib_o} ${logcollector_o} ${rootcheck_o_lib} ${syscheck_o} ${execd_o}
 
 ifeq (${uname_S},HP-UX)
 	wmodules_dep := ${wmodules_dep} ${config_o}
@@ -1627,32 +1668,20 @@ agentlessd/%.o: agentlessd/%.c
 wazuh-agentlessd: ${os_agentlessd_o}
 	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
-#### os_execd #####
 
-os_execd_c := $(wildcard os_execd/*.c)
-os_execd_o := $(os_execd_c:.c=.o)
-
+#### execd ####
 os_execd/%.o: os_execd/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-execd\" -c $^ -o $@
-
-wazuh-execd: ${os_execd_o}
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-modulesd\" -c $^ -o $@
 
 
-#### logcollectord ####
-
-os_logcollector_c := $(wildcard logcollector/*.c)
-os_logcollector_o := $(os_logcollector_c:.c=.o)
-os_logcollector_eventchannel_o := $(os_logcollector_c:.c=-event.o)
+#### logcollector ####
 
 logcollector/%.o: logcollector/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-logcollector\" -c $^ -o $@
+	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-modulesd\" -c $^ -o $@
 
 logcollector/%-event.o: logcollector/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DEVENTCHANNEL_SUPPORT -DARGV0=\"wazuh-logcollector\" -c $^ -o $@
+	${OSSEC_CC} ${OSSEC_CFLAGS} -DEVENTCHANNEL_SUPPORT -DARGV0=\"wazuh-modulesd\" -c $^ -o $@
 
-wazuh-logcollector: ${os_logcollector_o}
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 #### remoted #########
 
@@ -1813,48 +1842,6 @@ wazuh-regex: util/wazuh-regex.o
 parallel-regex: util/parallel-regex.o
 	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
-#### rootcheck #####
-
-rootcheck_c := $(wildcard rootcheck/*.c)
-rootcheck_o := $(rootcheck_c:.c=.o)
-rootcheck_o_lib := $(filter-out rootcheck/rootcheck-config.o, ${rootcheck_o})
-rootcheck_o_cmd := $(filter-out rootcheck/config.o, ${rootcheck_o})
-
-
-rootcheck/%.o: rootcheck/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"rootcheck\" -c $^ -o $@
-
-rootcheck.a: ${rootcheck_o_lib}
-	${OSSEC_LINK} $@ $^
-	${OSSEC_RANLIB} $@
-
-
-#### syscheck ######
-
-
-syscheck_sql := syscheckd/db/schema_fim_db.sql
-
-syscheck_c := $(wildcard syscheckd/*.c)
-syscheck_c += $(wildcard syscheckd/db/*.c)
-syscheck_c += $(wildcard syscheckd/whodata/*.c)
-syscheck_c += $(wildcard syscheckd/registry/*.c)
-
-syschecklib_o := $(syschecklib_c:.c=.o) $(syscheck_sql:.sql=.o)
-syscheck_o := $(syschecklib_o:.c=.o) $(syscheck_c:.c=.o) $(syscheck_sql:.sql=.o)
-syscheck_eventchannel_o := $(syscheck_c:.c=-event.o) $(syscheck_sql:.sql=.o)
-
-syscheckd/db/schema_fim_db.o: syscheckd/db/schema_fim_db.sql
-	${QUIET_CC}echo 'const char *schema_fim_sql = "'"`cat $< | sed s/\\\\\\\/\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\/g | tr -d \\\n`"'";' | ${MING_BASE}${CC} ${OSSEC_CFLAGS} -xc -c -o $@ -
-
-syscheckd/%.o: syscheckd/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-syscheckd\" -c $^ -o $@
-
-syscheckd/%-event.o: syscheckd/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} ${DEFINES_EVENTCHANNEL} -DEVENTCHANNEL_SUPPORT -DARGV0=\"wazuh-syscheckd\" -c $^ -o $@
-
-wazuh-syscheckd: ${syscheck_o} rootcheck.a
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
-
 #### Monitor #######
 
 monitor_c := $(wildcard monitord/*.c)
@@ -2009,7 +1996,7 @@ wazuh-analysisd: ${analysisd_live_o} analysisd/analysisd-live.o ${output_o} ${fo
 wmodulesd_c := wazuh_modules/main.c
 wmodulesd_o := $(wmodulesd_c:.c=.o)
 
-wazuh-modulesd: ${wmodulesd_o}
+wazuh-modulesd: ${wmodulesd_o} ${logcollector_o} ${execd_o}
 	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 ### wazuh-gtest-gmock ###
@@ -2192,10 +2179,10 @@ win32_ui_o := $(win32_ui_c:.c=.o)
 win32/ui/%.o: win32/ui/%.c
 	${OSSEC_CC} ${OSSEC_CFLAGS} -UOSSECHIDS -DARGV0=\"wazuh-win32ui\" -c $^ -o $@
 
-win32/wazuh-agent.exe: win32/icon.o win32/win_agent.o win32/win_service.o win32/win_utils.o ${syscheck_o} ${rootcheck_o} $(filter-out wazuh_modules/main.o, ${wmodulesd_o}) $(filter-out client-agent/main.o, $(filter-out client-agent/agentd.o, $(filter-out client-agent/event-forward.o, ${client_agent_o}))) $(filter-out logcollector/main.o, ${os_logcollector_o}) ${os_execd_o} monitord/rotate_log.o monitord/compress_log.o
+win32/wazuh-agent.exe: win32/icon.o win32/win_agent.o win32/win_service.o win32/win_utils.o ${syscheck_o} ${rootcheck_o} $(filter-out wazuh_modules/main.o, ${wmodulesd_o}) $(filter-out client-agent/main.o, $(filter-out client-agent/agentd.o, $(filter-out client-agent/event-forward.o, ${client_agent_o}))) $(filter-out logcollector/main.o, ${logcollector_o}) ${execd_o} monitord/rotate_log.o monitord/compress_log.o
 	${OSSEC_CCBIN} -DARGV0=\"wazuh-agent\" -DOSSECHIDS ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
-win32/wazuh-agent-eventchannel.exe: win32/icon.o win32/win_agent.o win32/win_service.o win32/win_utils.o $(filter-out syscheckd/main-event.o, ${syscheck_eventchannel_o}) ${rootcheck_o} $(filter-out wazuh_modules/main.o, ${wmodulesd_o}) $(filter-out client-agent/main.o, $(filter-out client-agent/agentd.o, $(filter-out client-agent/event-forward.o, ${client_agent_o}))) $(filter-out logcollector/main-event.o, ${os_logcollector_eventchannel_o}) ${os_execd_o} monitord/rotate_log.o monitord/compress_log.o
+win32/wazuh-agent-eventchannel.exe: win32/icon.o win32/win_agent.o win32/win_service.o win32/win_utils.o $(filter-out syscheckd/main-event.o, ${syscheck_eventchannel_o}) ${rootcheck_o} $(filter-out wazuh_modules/main.o, ${wmodulesd_o}) $(filter-out client-agent/main.o, $(filter-out client-agent/agentd.o, $(filter-out client-agent/event-forward.o, ${client_agent_o}))) $(filter-out logcollector/main-event.o, ${logcollector_eventchannel_o}) ${execd_o} monitord/rotate_log.o monitord/compress_log.o
 	${OSSEC_CCBIN} -DARGV0=\"wazuh-agent\" -DOSSECHIDS -DEVENTCHANNEL_SUPPORT ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 win32/manage_agents.exe: win32/win_service_rk.o ${addagent_o}
@@ -2299,8 +2286,8 @@ clean-internals: clean-unit-tests
 	rm -f ${os_csyslogd_o}
 	rm -f ${os_dbd_o}
 	rm -f ${os_agentlessd_o}
-	rm -f ${os_execd_o}
-	rm -f ${os_logcollector_o} ${os_logcollector_eventchannel_o}
+	rm -f ${execd_o}
+	rm -f ${logcollector_o} ${logcollector_eventchannel_o}
 	rm -f ${remoted_o}
 	rm -f ${report_o}
 	rm -f ${client_agent_o}
@@ -2346,7 +2333,7 @@ clean-unit-tests:
 	rm -f ${wrappers_posix_o}
 	rm -f ${wrappers_wazuh_o}
 	rm -f ${wrappers_wazuh_os_crypto_o}
-	rm -f ${wrappers_wazuh_os_execd_o}
+	rm -f ${wrappers_wazuh_execd_o}
 	rm -f ${wrappers_wazuh_os_net_o}
 	rm -f ${wrappers_wazuh_os_regex_o}
 	rm -f ${wrappers_wazuh_os_xml_o}

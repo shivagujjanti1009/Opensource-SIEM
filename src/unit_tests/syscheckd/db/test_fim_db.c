@@ -36,6 +36,8 @@
 #define __mode_t int
 #endif
 
+#define SYSCHECK_MODULE_TAG "wazuh-modulesd:syscheck"
+
 extern const char *SQL_STMT[];
 
 
@@ -193,10 +195,12 @@ void expect_fim_db_create_temp_file_fail(int storage) {
     will_return(__wrap_wfopen, 0);
 
 #ifndef TEST_WINAGENT
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Failed to create temporal storage './tmp_19283746523452345': Success (0)");
 #else
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Failed to create temporal storage '.\\tmp_19283746523452345': Success (0)");
 #endif
 }
@@ -321,7 +325,8 @@ void test_fim_db_exec_simple_wquery_error(void **state) {
     expect_string(__wrap_sqlite3_exec, sql, "BEGIN;");
     will_return(__wrap_sqlite3_exec, "ERROR_MESSAGE");
     will_return(__wrap_sqlite3_exec, SQLITE_ERROR);
-    expect_string(__wrap__merror, formatted_msg, "Error executing simple query 'BEGIN;': ERROR_MESSAGE");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error executing simple query 'BEGIN;': ERROR_MESSAGE");
 
     int ret = fim_db_exec_simple_wquery(test_data->fim_sql, "BEGIN;");
     assert_int_equal(ret, FIMDB_ERR);
@@ -360,9 +365,11 @@ void test_fim_db_init_failed_file_creation(void **state) {
     will_return(__wrap_sqlite3_extended_errcode, 111);
 
 #ifdef TEST_WINAGENT
-    expect_string(__wrap__merror, formatted_msg, "Couldn't create SQLite database '.\\fim.db': ERROR MESSAGE (111)");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Couldn't create SQLite database '.\\fim.db': ERROR MESSAGE (111)");
 #else
-    expect_string(__wrap__merror, formatted_msg, "Couldn't create SQLite database './fim.db': ERROR MESSAGE (111)");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Couldn't create SQLite database './fim.db': ERROR MESSAGE (111)");
 #endif
 
     will_return(__wrap_sqlite3_close_v2, 0);
@@ -384,7 +391,8 @@ void test_fim_db_init_failed_file_creation_prepare(void **state) {
     will_return(__wrap_sqlite3_prepare_v2, SQLITE_ERROR);
     will_return(__wrap_sqlite3_errmsg, "ERROR MESSAGE");
     will_return(__wrap_sqlite3_extended_errcode, 111);
-    expect_any(__wrap__merror, formatted_msg);
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_any(__wrap__mterror, formatted_msg);
 
     will_return(__wrap_sqlite3_close_v2, 0);
 
@@ -404,7 +412,8 @@ void test_fim_db_init_failed_file_creation_step(void **state) {
     will_return(__wrap_sqlite3_step, SQLITE_ERROR);
     will_return(__wrap_sqlite3_errmsg, "ERROR MESSAGE");
     will_return(__wrap_sqlite3_extended_errcode, 111);
-    expect_any(__wrap__merror, formatted_msg);
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_any(__wrap__mterror, formatted_msg);
     will_return(__wrap_sqlite3_finalize, 0);
     will_return(__wrap_sqlite3_close_v2, 0);
     fim_db = fim_db_init(syscheck.database_store);
@@ -432,9 +441,11 @@ void test_fim_db_init_failed_file_creation_chmod(void **state) {
 #endif
     will_return(__wrap_chmod, -1);
 #ifndef TEST_WINAGENT
-    expect_string(__wrap__merror, formatted_msg, "(1127): Could not chmod object './fim.db' due to [(0)-(Success)].");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "(1127): Could not chmod object './fim.db' due to [(0)-(Success)].");
 #else
-    expect_string(__wrap__merror, formatted_msg, "(1127): Could not chmod object '.\\fim.db' due to [(0)-(Success)].");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "(1127): Could not chmod object '.\\fim.db' due to [(0)-(Success)].");
 #endif
     fim_db = fim_db_init(syscheck.database_store);
     assert_null(fim_db);
@@ -467,12 +478,14 @@ void test_fim_db_init_failed_cache(void **state) {
     will_return(__wrap_sqlite3_errmsg, "REASON GOES HERE");
     will_return(__wrap_sqlite3_extended_errcode, 111);
 #ifndef TEST_WINAGENT
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Error preparing statement 'INSERT INTO file_data (dev, inode, size, perm, attributes, uid, gid, "
                   "user_name, group_name, hash_md5, hash_sha1, hash_sha256, mtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "
                   "?, ?, ?, ?);': REASON GOES HERE (111)");
 #else
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Error preparing statement 'INSERT INTO file_data (dev, inode, size, perm, attributes, uid, gid, "
                   "user_name, group_name, hash_md5, hash_sha1, hash_sha256, mtime) VALUES (NULL, NULL, ?, ?, ?, ?, ?, "
                   "?, ?, ?, ?, ?, ?);': REASON GOES HERE (111)");
@@ -495,12 +508,14 @@ void test_fim_db_init_failed_cache_memory(void **state) {
     will_return(__wrap_sqlite3_errmsg, "REASON GOES HERE");
     will_return(__wrap_sqlite3_extended_errcode, 111);
 #ifndef TEST_WINAGENT
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Error preparing statement 'INSERT INTO file_data (dev, inode, size, perm, attributes, uid, gid, "
                   "user_name, group_name, hash_md5, hash_sha1, hash_sha256, mtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "
                   "?, ?, ?, ?);': REASON GOES HERE (111)");
 #else
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Error preparing statement 'INSERT INTO file_data (dev, inode, size, perm, attributes, uid, gid, "
                   "user_name, group_name, hash_md5, hash_sha1, hash_sha256, mtime) VALUES (NULL, NULL, ?, ?, ?, ?, ?, "
                   "?, ?, ?, ?, ?, ?);': REASON GOES HERE (111)");
@@ -526,7 +541,8 @@ void test_fim_db_init_failed_execution(void **state) {
     will_return(__wrap_sqlite3_exec, "ERROR_MESSAGE");
     will_return(__wrap_sqlite3_extended_errcode, 111);
     will_return(__wrap_sqlite3_exec, SQLITE_ERROR);
-    expect_string(__wrap__merror, formatted_msg, "SQL error setting synchronous and journal mode: ERROR_MESSAGE (111)");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "SQL error setting synchronous and journal mode: ERROR_MESSAGE (111)");
     // fim_db_finalize_stmt()
     will_return_always(__wrap_sqlite3_reset, SQLITE_OK);
     will_return_always(__wrap_sqlite3_clear_bindings, SQLITE_OK);
@@ -550,7 +566,8 @@ void test_fim_db_init_failed_simple_query(void **state) {
     expect_string(__wrap_sqlite3_exec, sql, "BEGIN;");
     will_return(__wrap_sqlite3_exec, "ERROR_MESSAGE");
     will_return(__wrap_sqlite3_exec, SQLITE_ERROR);
-    expect_string(__wrap__merror, formatted_msg, "Error executing simple query 'BEGIN;': ERROR_MESSAGE");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error executing simple query 'BEGIN;': ERROR_MESSAGE");
     // fim_db_finalize_stmt()
     will_return_always(__wrap_sqlite3_reset, SQLITE_OK);
     will_return_always(__wrap_sqlite3_clear_bindings, SQLITE_OK);
@@ -594,12 +611,14 @@ void test_fim_db_clean_file_not_removed(void **state) {
 
 #ifndef TEST_WINAGENT
     for (i = 1; i <= FIMDB_RM_MAX_LOOP; i++) {
-        expect_any(__wrap__mdebug2, formatted_msg);
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+        expect_any(__wrap__mtdebug2, formatted_msg);
         expect_function_call(__wrap_usleep);
     }
 #else
     for (i = 1; i <= FIMDB_RM_MAX_LOOP; i++) {
-        expect_any(__wrap__mdebug2, formatted_msg);
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+        expect_any(__wrap__mtdebug2, formatted_msg);
         expect_value(wrap_Sleep, dwMilliseconds, FIMDB_RM_DEFAULT_TIME * i);
     }
 #endif
@@ -773,7 +792,8 @@ void test_fim_db_check_transaction_failed(void **state) {
     will_return(__wrap_sqlite3_exec, "ERROR MESSAGE");
     will_return(__wrap_sqlite3_exec, SQLITE_ERROR);
     will_return(__wrap_sqlite3_get_autocommit, 0);
-    expect_string(__wrap__merror, formatted_msg, "Error executing simple query 'END;': ERROR MESSAGE");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error executing simple query 'END;': ERROR MESSAGE");
     const time_t commit_time = test_data->fim_sql->transaction.last_commit;
     fim_db_check_transaction(test_data->fim_sql);
     assert_int_equal(commit_time, test_data->fim_sql->transaction.last_commit);
@@ -807,12 +827,14 @@ void test_fim_db_cache_failed(void **state) {
     will_return(__wrap_sqlite3_errmsg, "REASON GOES HERE");
     will_return(__wrap_sqlite3_extended_errcode, 111);
 #ifndef TEST_WINAGENT
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Error preparing statement 'INSERT INTO file_data (dev, inode, size, perm, attributes, uid, gid, "
                   "user_name, group_name, hash_md5, hash_sha1, hash_sha256, mtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "
                   "?, ?, ?, ?);': REASON GOES HERE (111)");
 #else
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Error preparing statement 'INSERT INTO file_data (dev, inode, size, perm, attributes, uid, gid, "
                   "user_name, group_name, hash_md5, hash_sha1, hash_sha256, mtime) VALUES (NULL, NULL, ?, ?, ?, ?, ?, "
                   "?, ?, ?, ?, ?, ?);': REASON GOES HERE (111)");
@@ -840,12 +862,14 @@ void test_fim_db_close_failed(void **state) {
     will_return(__wrap_sqlite3_errmsg, "REASON GOES HERE");
     will_return(__wrap_sqlite3_extended_errcode, 111);
 #ifndef TEST_WINAGENT
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Error finalizing statement 'INSERT INTO file_data (dev, inode, size, perm, attributes, uid, gid, "
                   "user_name, group_name, hash_md5, hash_sha1, hash_sha256, mtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "
                   "?, ?, ?, ?);': REASON GOES HERE (111)");
 #else
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Error finalizing statement 'INSERT INTO file_data (dev, inode, size, perm, attributes, uid, gid, "
                   "user_name, group_name, hash_md5, hash_sha1, hash_sha256, mtime) VALUES (NULL, NULL, ?, ?, ?, ?, ?, "
                   "?, ?, ?, ?, ?, ?);': REASON GOES HERE (111)");
@@ -883,7 +907,8 @@ void test_fim_db_finalize_stmt_failed(void **state) {
         will_return(__wrap_sqlite3_errmsg, "FINALIZE ERROR");
         will_return(__wrap_sqlite3_extended_errcode, 111);
         snprintf(buffer, OS_MAXSTR, "Error finalizing statement '%s': FINALIZE ERROR (111)", SQL_STMT[index]);
-        expect_string(__wrap__merror, formatted_msg, buffer);
+        expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+        expect_string(__wrap__mterror, formatted_msg, buffer);
         int ret = fim_db_finalize_stmt(test_data->fim_sql);
         assert_int_equal(ret, FIMDB_ERR);
     }
@@ -907,7 +932,8 @@ void test_fim_db_force_commit_failed(void **state) {
     will_return(__wrap_sqlite3_exec, "ERROR_MESSAGE");
     will_return(__wrap_sqlite3_exec, SQLITE_ERROR);
     will_return(__wrap_sqlite3_get_autocommit, 0);
-    expect_string(__wrap__merror, formatted_msg, "Error executing simple query 'END;': ERROR_MESSAGE");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error executing simple query 'END;': ERROR_MESSAGE");
     fim_db_force_commit(test_data->fim_sql);
     // If commit fails last_commit should still be one
     assert_int_equal(1, test_data->fim_sql->transaction.last_commit);
@@ -941,12 +967,14 @@ void test_fim_db_clean_stmt_reset_and_prepare_failed(void **state) {
     will_return(__wrap_sqlite3_errmsg, "ERROR");
     will_return(__wrap_sqlite3_extended_errcode, 111);
 #ifndef TEST_WINAGENT
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Error preparing statement 'INSERT INTO file_data (dev, inode, size, perm, attributes, uid, gid, "
                   "user_name, group_name, hash_md5, hash_sha1, hash_sha256, mtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "
                   "?, ?, ?, ?);': ERROR (111)");
 #else
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Error preparing statement 'INSERT INTO file_data (dev, inode, size, perm, attributes, uid, gid, "
                   "user_name, group_name, hash_md5, hash_sha1, hash_sha256, mtime) VALUES (NULL, NULL, ?, ?, ?, ?, ?, "
                   "?, ?, ?, ?, ?, ?);': ERROR (111)");
@@ -1038,7 +1066,8 @@ static void fim_db_get_checksum_range_fail_step_on_first_half(void **state) {
 
     will_return(__wrap_sqlite3_errmsg, "ERROR MESSAGE");
     will_return(__wrap_sqlite3_extended_errcode, 111);
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Step error getting path range, first half 'start start' 'top top' (i:0): ERROR MESSAGE (111)");
 
     retval = fim_db_get_checksum_range(&fim_sql, FIM_TYPE_FILE, start, top, 2, ctx_left, ctx_right, &lower_half_path,
@@ -1060,7 +1089,8 @@ static void fim_db_get_checksum_empty_range_fail_step_on_first_half(void **state
     will_return(__wrap_sqlite3_step, 0);
     will_return(__wrap_sqlite3_step, SQLITE_DONE);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
                   "Received a synchronization message with empty range, first half 'start start' 'top top' (i:0)");
 
     retval = fim_db_get_checksum_range(&fim_sql, FIM_TYPE_FILE, start, top, 2, ctx_left, ctx_right, &lower_half_path,
@@ -1084,7 +1114,8 @@ static void fim_db_get_checksum_range_fail_to_decode_string_array_on_first_half(
 
     expect_fim_db_decode_string_array(-1, NULL);
 
-    expect_string(__wrap__merror, formatted_msg, "Failed to decode checksum range query");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Failed to decode checksum range query");
 
     retval = fim_db_get_checksum_range(&fim_sql, FIM_TYPE_FILE, start, top, 2, ctx_left, ctx_right, &lower_half_path,
                                        &higher_half_path);
@@ -1117,8 +1148,9 @@ static void fim_db_get_checksum_range_fail_step_on_second_half(void **state) {
 
     will_return(__wrap_sqlite3_errmsg, "ERROR MESSAGE");
     will_return(__wrap_sqlite3_extended_errcode, 111);
-    expect_string(__wrap__merror, formatted_msg,
-                  "Step error getting path range, second half 'start start' 'top top' (i:1): ERROR MESSAGE (111)");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
+                 "Step error getting path range, second half 'start start' 'top top' (i:1): ERROR MESSAGE (111)");
 
     retval = fim_db_get_checksum_range(&fim_sql, FIM_TYPE_FILE, start, top, 2, ctx_left, ctx_right, &lower_half_path,
                                        &higher_half_path);
@@ -1149,7 +1181,8 @@ static void fim_db_get_checksum_empty_range_fail_step_on_second_half(void **stat
     will_return(__wrap_sqlite3_step, 0);
     will_return(__wrap_sqlite3_step, SQLITE_DONE);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
                   "Received a synchronization message with empty range, second half 'start start' 'top top' (i:1)");
 
     retval = fim_db_get_checksum_range(&fim_sql, FIM_TYPE_FILE, start, top, 2, ctx_left, ctx_right, &lower_half_path,
@@ -1183,7 +1216,8 @@ static void fim_db_get_checksum_range_fail_to_decode_string_array_on_second_half
 
     expect_fim_db_decode_string_array(-1, NULL);
 
-    expect_string(__wrap__merror, formatted_msg, "Failed to decode checksum range query");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Failed to decode checksum range query");
 
     retval = fim_db_get_checksum_range(&fim_sql, FIM_TYPE_FILE, start, top, 2, ctx_left, ctx_right, &lower_half_path,
                                        &higher_half_path);
@@ -1261,7 +1295,8 @@ void test_fim_db_get_count_range_error_stepping(void **state) {
     will_return(__wrap_sqlite3_errmsg, "Some SQLite error");
     will_return(__wrap_sqlite3_extended_errcode, 111);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Step error getting count range 'start begin' 'top top': Some SQLite error (111)");
 
     ret = fim_db_get_count_range(test_data->fim_sql, FIM_TYPE_FILE, "begin", "top", &count);
@@ -1340,7 +1375,8 @@ void test_fim_db_callback_save_path_null(void **state) {
 
     will_return(__wrap_wstr_escape_json, NULL);
 
-    expect_string(__wrap__merror, formatted_msg, "Error escaping '/test/path'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error escaping '/test/path'");
 
     fim_db_callback_save_path(test_data->fim_sql, test_data->entry, syscheck.database_store, test_data->tmp_file);
 
@@ -1404,7 +1440,8 @@ void test_fim_db_callback_save_path_disk_error(void **state) {
 
     errno = 0;
 
-    expect_string(__wrap__merror, formatted_msg, "Can't save entry: /test/path Success");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Can't save entry: /test/path Success");
 
     fim_db_callback_save_path(test_data->fim_sql, test_data->entry, syscheck.database_store, test_data->tmp_file);
     assert_int_equal(test_data->tmp_file->elements, 0);
@@ -1488,10 +1525,12 @@ void test_fim_db_create_temp_file_disk_error(void **state) {
     will_return(__wrap_wfopen, 0);
 
 #ifdef TEST_WINAGENT
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Failed to create temporal storage '.\\tmp_19283746523452345': Success (0)");
 #else
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Failed to create temporal storage './tmp_19283746523452345': Success (0)");
 #endif
 
@@ -1538,7 +1577,8 @@ void test_fim_db_clean_file_disk_error() {
     expect_string(__wrap_remove, filename, file->path);
     will_return(__wrap_remove, -1);
 
-    expect_string(__wrap__merror, formatted_msg, "Failed to remove 'test': No such file or directory (2)");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Failed to remove 'test': No such file or directory (2)");
 
     fim_db_clean_file(&file, FIM_DB_DISK);
 
@@ -1680,7 +1720,8 @@ static void test_fim_db_callback_save_string_fail_to_escape_string(void **state)
 
     will_return(__wrap_wstr_escape_json, NULL);
 
-    expect_string(__wrap__merror, formatted_msg, "Error escaping 'test string'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Error escaping 'test string'");
 
     fim_db_callback_save_string(&fim_sql, str, FIM_DB_DISK, &file);
 }
@@ -1709,7 +1750,8 @@ static void test_fim_db_callback_save_string_disk_fail_to_print(void **state) {
     will_return(wrap_fprintf, -1);
 #endif
 
-    expect_string(__wrap__merror, formatted_msg, "Can't save entry: test string Success");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Can't save entry: test string Success");
 
     fim_db_callback_save_string(&fim_sql, str, FIM_DB_DISK, &file);
 
@@ -1824,7 +1866,8 @@ static void test_fim_db_get_last_path_fail_to_step_query(void **state) {
     will_return(__wrap_sqlite3_errmsg, "SQLITE error");
     will_return(__wrap_sqlite3_extended_errcode, 111);
 
-    expect_string(__wrap__merror, formatted_msg, "Step error getting row string: SQLITE error (111)");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Step error getting row string: SQLITE error (111)");
 
     retval = fim_db_get_last_path(&fim_sql, FIM_TYPE_FILE, &path);
 
@@ -1892,7 +1935,8 @@ static void test_fim_db_read_line_from_file_disk_fail_to_fseek(void **state) {
     will_return(__wrap_fseek, -1);
 
     snprintf(warning_message, OS_SIZE_256, FIM_DB_TEMPORARY_FILE_POSITION, 0, "Success");
-    expect_string(__wrap__mwarn, formatted_msg, warning_message);
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtwarn, formatted_msg, warning_message);
 
     retval = fim_db_read_line_from_file(&file, FIM_DB_DISK, 0, &line);
 
@@ -1915,7 +1959,8 @@ static void test_fim_db_read_line_from_file_disk_fail_to_read_line_length(void *
     will_return(wrap_fgets, NULL);
 #endif
 
-    expect_string(__wrap__mdebug1, formatted_msg, FIM_UNABLE_TO_READ_TEMP_FILE);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, FIM_UNABLE_TO_READ_TEMP_FILE);
 
     retval = fim_db_read_line_from_file(&file, FIM_DB_DISK, 0, &line);
 
@@ -1946,7 +1991,8 @@ static void test_fim_db_read_line_from_file_disk_fail_to_read_line(void **state)
     will_return(wrap_fgets, NULL);
 #endif
 
-    expect_string(__wrap__mdebug1, formatted_msg, FIM_UNABLE_TO_READ_TEMP_FILE);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, FIM_UNABLE_TO_READ_TEMP_FILE);
 
     retval = fim_db_read_line_from_file(&file, FIM_DB_DISK, 0, &line);
 
@@ -1977,7 +2023,8 @@ static void test_fim_db_read_line_from_file_disk_read_corrupt_line(void **state)
     will_return(wrap_fgets, "/corrupt/path");
 #endif
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg,
                   "Temporary path file '/some/random/path' is corrupt: missing line end.");
 
     retval = fim_db_read_line_from_file(&file, FIM_DB_DISK, 0, &line);
@@ -2021,7 +2068,8 @@ static void test_fim_db_read_line_from_file_memory_attempt_to_read_out_of_bounds
     char *line = NULL;
     int retval;
 
-    expect_string(__wrap__merror, formatted_msg, "Attempted to retrieve an out of bounds line.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Attempted to retrieve an out of bounds line.");
 
     retval = fim_db_read_line_from_file(&file, FIM_DB_MEMORY, 4, &line);
 
@@ -2112,7 +2160,8 @@ void test_fim_db_process_read_file_fail_to_read_registry_entry(void **state) {
     expect_fim_db_read_line_from_file_disk_success(0, file->fd, "HKEY_WRONG_FORMAT\\\n",
                                                    "00000000000000000000000000000019");
 
-    expect_string(__wrap__merror, formatted_msg, "Temporary path file '/some/random/path' is corrupt: Wrong format");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Temporary path file '/some/random/path' is corrupt: Wrong format");
 
     expect_fim_db_clean_file(file->fd, FIM_DB_DISK);
 
@@ -2189,8 +2238,10 @@ static void test_fim_db_get_count_entries_query_failed(void **state) {
     will_return(__wrap_sqlite3_step, SQLITE_ERROR);
 
     will_return(__wrap_sqlite3_errmsg, "SQLITE some error");
+
     will_return(__wrap_sqlite3_extended_errcode, 111);
-    expect_string(__wrap__merror, formatted_msg, "Step error getting count entry path: SQLITE some error (111)");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "Step error getting count entry path: SQLITE some error (111)");
 
     retval = fim_db_get_count_entries(&fim_sql);
 
@@ -2349,7 +2400,8 @@ void test_fim_db_get_entry_from_sync_msg_no_separator(void **state) {
     fim_entry *entry = NULL;
 
     snprintf(debug_msg, OS_SIZE_128, "Separator ':' was not found in %s", "a\\string\\without\\the\\separator\\:");
-    expect_string(__wrap__mdebug1, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, debug_msg);
 
     entry = fim_db_get_entry_from_sync_msg(&fim_sql, FIM_TYPE_REGISTRY, str);
 
@@ -2363,7 +2415,8 @@ void test_fim_db_get_entry_from_sync_msg_wrong_str(void **state) {
     fim_entry *entry = NULL;
 
     snprintf(debug_msg, OS_SIZE_128, "Separator ':' was not found in %s", "\\\\\\");
-    expect_string(__wrap__mdebug1, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, debug_msg);
 
     entry = fim_db_get_entry_from_sync_msg(&fim_sql, FIM_TYPE_REGISTRY, str);
 

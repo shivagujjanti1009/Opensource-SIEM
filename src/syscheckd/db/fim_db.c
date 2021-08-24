@@ -125,7 +125,7 @@ fdb_t *fim_db_init(int storage) {
     sqlite3_exec(fim->db, "PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA journal_mode = TRUNCATE;", NULL, NULL, &error);
 
     if (error) {
-        merror("SQL error setting synchronous and journal mode: %s (%d)", error, sqlite3_extended_errcode(fim->db));
+        mterror(SYSCHECK_LOGTAG, "SQL error setting synchronous and journal mode: %s (%d)", error, sqlite3_extended_errcode(fim->db));
         fim_db_finalize_stmt(fim);
         sqlite3_free(error);
         goto free_fim;
@@ -160,7 +160,7 @@ void fim_db_clean(void) {
         // it's unlocked in order to remove it. Wait at most 5 seconds.
         int i, rm;
         for (i = 1; i <= FIMDB_RM_MAX_LOOP && (rm = remove(FIM_DB_DISK_PATH)); i++) {
-            mdebug2(FIM_DELETE_DB_TRY, FIM_DB_DISK_PATH, i);
+            mtdebug2(SYSCHECK_LOGTAG, FIM_DELETE_DB_TRY, FIM_DB_DISK_PATH, i);
 #ifdef WIN32
             Sleep(FIMDB_RM_DEFAULT_TIME * i); //milliseconds
 #else
@@ -172,7 +172,7 @@ void fim_db_clean(void) {
         if (rm == FIMDB_ERR) {
             while (remove(FIM_DB_DISK_PATH)) {
                 // LCOV_EXCL_START
-                mdebug2(FIM_DELETE_DB, FIM_DB_DISK_PATH);
+                mtdebug2(SYSCHECK_LOGTAG, FIM_DELETE_DB, FIM_DB_DISK_PATH);
 #ifdef WIN32
                 Sleep(60000); //milliseconds
 #else
@@ -192,7 +192,7 @@ int fim_db_cache(fdb_t *fim_sql) {
     for (index = 0; index < FIMDB_STMT_SIZE; index++) {
         if (sqlite3_prepare_v2(fim_sql->db, SQL_STMT[index], -1,
             &fim_sql->stmt[index], NULL) != SQLITE_OK) {
-            merror("Error preparing statement '%s': %s (%d)", SQL_STMT[index], sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+            mterror(SYSCHECK_LOGTAG, "Error preparing statement '%s': %s (%d)", SQL_STMT[index], sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
             goto end;
         }
     }
@@ -211,14 +211,14 @@ int fim_db_create_file(const char *path, const char *source, const int storage, 
     int result;
 
     if (sqlite3_open_v2(path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL)) {
-        merror("Couldn't create SQLite database '%s': %s (%d)", path, sqlite3_errmsg(db), sqlite3_extended_errcode(db));
+        mterror(SYSCHECK_LOGTAG, "Couldn't create SQLite database '%s': %s (%d)", path, sqlite3_errmsg(db), sqlite3_extended_errcode(db));
         sqlite3_close_v2(db);
         return -1;
     }
 
     for (sql = source; sql && *sql; sql = tail) {
         if (sqlite3_prepare_v2(db, sql, -1, &stmt, &tail) != SQLITE_OK) {
-            merror("Error preparing statement '%s': %s (%d)", sql, sqlite3_errmsg(db), sqlite3_extended_errcode(db));
+            mterror(SYSCHECK_LOGTAG, "Error preparing statement '%s': %s (%d)", sql, sqlite3_errmsg(db), sqlite3_extended_errcode(db));
             sqlite3_close_v2(db);
             return -1;
         }
@@ -231,7 +231,7 @@ int fim_db_create_file(const char *path, const char *source, const int storage, 
         case SQLITE_DONE:
             break;
         default:
-            merror("Error stepping statement '%s': %s (%d)", sql, sqlite3_errmsg(db), sqlite3_extended_errcode(db));
+            mterror(SYSCHECK_LOGTAG, "Error stepping statement '%s': %s (%d)", sql, sqlite3_errmsg(db), sqlite3_extended_errcode(db));
             sqlite3_finalize(stmt);
             sqlite3_close_v2(db);
             return -1;
@@ -248,7 +248,7 @@ int fim_db_create_file(const char *path, const char *source, const int storage, 
     sqlite3_close_v2(db);
 
     if (chmod(path, 0660) < 0) {
-        merror(CHMOD_ERROR, path, errno, strerror(errno));
+        mterror(SYSCHECK_LOGTAG, CHMOD_ERROR, path, errno, strerror(errno));
         return -1;
     }
 
@@ -269,7 +269,7 @@ fim_tmp_file *fim_db_create_temp_file(int storage) {
 
         file->fd = wfopen(file->path, "w+");
         if (file->fd == NULL) {
-            merror("Failed to create temporal storage '%s': %s (%d)", file->path, strerror(errno), errno);
+            mterror(SYSCHECK_LOGTAG, "Failed to create temporal storage '%s': %s (%d)", file->path, strerror(errno), errno);
             os_free(file->path);
             os_free(file);
             return NULL;
@@ -277,7 +277,7 @@ fim_tmp_file *fim_db_create_temp_file(int storage) {
 
         // Have the file removed on close.
         if (remove(file->path) < 0) {
-            merror("Failed to remove '%s': %s (%d)", file->path, strerror(errno), errno);
+            mterror(SYSCHECK_LOGTAG, "Failed to remove '%s': %s (%d)", file->path, strerror(errno), errno);
             os_free(file->path);
             os_free(file);
             return NULL;
@@ -360,7 +360,7 @@ fim_entry *fim_db_get_entry_from_sync_msg(fdb_t *fim_sql, fim_type type, const c
     finder = find_key_value_limiter(value_name);
 
     if (finder == NULL) {
-        mdebug1("Separator ':' was not found in %s", full_path);
+        mtdebug1(SYSCHECK_LOGTAG, "Separator ':' was not found in %s", full_path);
         free(full_path);
         return NULL;
     }
@@ -410,7 +410,7 @@ int fim_db_finalize_stmt(fdb_t *fim_sql) {
     for (index = 0; index < FIMDB_STMT_SIZE; index++) {
         fim_db_clean_stmt(fim_sql, index);
         if (sqlite3_finalize(fim_sql->stmt[index]) != SQLITE_OK) {
-            merror("Error finalizing statement '%s': %s (%d)", SQL_STMT[index], sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+            mterror(SYSCHECK_LOGTAG, "Error finalizing statement '%s': %s (%d)", SQL_STMT[index], sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
             goto end;
         }
     }
@@ -436,7 +436,7 @@ void fim_db_check_transaction(fdb_t *fim_sql) {
             }
 
             // Updating timestamp only after a successful transaction end
-            mdebug1("Database transaction completed.");
+            mtdebug1(SYSCHECK_LOGTAG, "Database transaction completed.");
             fim_sql->transaction.last_commit = now;
         }
 
@@ -455,7 +455,7 @@ int fim_db_clean_stmt(fdb_t *fim_sql, int index) {
         sqlite3_finalize(fim_sql->stmt[index]);
 
         if (sqlite3_prepare_v2(fim_sql->db, SQL_STMT[index], -1, &fim_sql->stmt[index], NULL) != SQLITE_OK) {
-            merror("Error preparing statement '%s': %s (%d)", SQL_STMT[index], sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+            mterror(SYSCHECK_LOGTAG, "Error preparing statement '%s': %s (%d)", SQL_STMT[index], sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
             return FIMDB_ERR;
         }
     }
@@ -519,7 +519,7 @@ int fim_db_exec_simple_wquery(fdb_t *fim_sql, const char *query) {
     sqlite3_exec(fim_sql->db, query, NULL, NULL, &error);
 
     if (error) {
-        merror("Error executing simple query '%s': %s", query, error);
+        mterror(SYSCHECK_LOGTAG, "Error executing simple query '%s': %s", query, error);
         sqlite3_free(error);
         return FIMDB_ERR;
     }
@@ -536,13 +536,13 @@ void fim_db_callback_save_string(__attribute__((unused))fdb_t * fim_sql, const c
 
     base = wstr_escape_json(str);
     if (base == NULL) {
-        merror("Error escaping '%s'", str);
+        mterror(SYSCHECK_LOGTAG, "Error escaping '%s'", str);
         return;
     }
 
     if (storage == FIM_DB_DISK) { // disk storage enabled
         if (fprintf(((fim_tmp_file *) arg)->fd, "%032ld%s\n", (unsigned long) strlen(base) + 1, base) < 0) {
-            merror("Can't save entry: %s %s", str, strerror(errno));
+            mterror(SYSCHECK_LOGTAG, "Can't save entry: %s %s", str, strerror(errno));
             free(base);
             return;
         }
@@ -565,7 +565,7 @@ void fim_db_callback_save_path(__attribute__((unused))fdb_t * fim_sql, fim_entry
 
 
     if(base = wstr_escape_json(path), base == NULL) {
-        merror("Error escaping '%s'", path);
+        mterror(SYSCHECK_LOGTAG, "Error escaping '%s'", path);
         return;
     }
 
@@ -580,7 +580,7 @@ void fim_db_callback_save_path(__attribute__((unused))fdb_t * fim_sql, fim_entry
 
     if (storage == FIM_DB_DISK) { // disk storage enabled
         if (fprintf(((fim_tmp_file *) arg)->fd, "%032ld%s\n", (unsigned long)(line_length + 1), write_buffer) < 0) {
-            merror("Can't save entry: %s %s", path, strerror(errno));
+            mterror(SYSCHECK_LOGTAG, "Can't save entry: %s %s", path, strerror(errno));
             goto end;
         }
 
@@ -656,7 +656,7 @@ int fim_db_process_read_file(fdb_t *fim_sql,
         } else {
             unsigned int arch =  strtoul(read_line, &split, 10);
             if (split == NULL || *split != ' ') {
-                merror("Temporary path file '%s' is corrupt: Wrong format", file->path);
+                mterror(SYSCHECK_LOGTAG, "Temporary path file '%s' is corrupt: Wrong format", file->path);
             } else {
                 os_calloc(1, sizeof(fim_entry), entry);
                 entry->type = FIM_TYPE_REGISTRY;
@@ -734,7 +734,7 @@ int fim_db_get_string(fdb_t *fim_sql, int index, char **str) {
     fim_db_clean_stmt(fim_sql, index);
 
     if (result = sqlite3_step(fim_sql->stmt[index]), result != SQLITE_ROW && result != SQLITE_DONE) {
-        merror("Step error getting row string: %s (%d)", sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+        mterror(SYSCHECK_LOGTAG, "Step error getting row string: %s (%d)", sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
         return FIMDB_ERR;
     }
 
@@ -788,7 +788,7 @@ int fim_db_get_count_range(fdb_t *fim_sql, fim_type type, const char *start, con
     fim_db_bind_range(fim_sql, RANGE_QUERY[type], start, top);
 
     if (sqlite3_step(fim_sql->stmt[RANGE_QUERY[type]]) != SQLITE_ROW) {
-        merror("Step error getting count range 'start %s' 'top %s': %s (%d)", start, top, sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+        mterror(SYSCHECK_LOGTAG, "Step error getting count range 'start %s' 'top %s': %s (%d)", start, top, sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
         return FIMDB_ERR;
     }
 
@@ -831,14 +831,14 @@ int fim_db_get_checksum_range(fdb_t *fim_sql,
                 break;
 
             case SQLITE_DONE:
-                mdebug2("Received a synchronization message with empty range, first half 'start %s' 'top %s' (i:%d)", start,
+                mtdebug2(SYSCHECK_LOGTAG, "Received a synchronization message with empty range, first half 'start %s' 'top %s' (i:%d)", start,
                         top, i);
                 os_free(*str_pathlh);
                 os_free(*str_pathuh);
                 return FIMDB_ERR;
 
             default:
-                merror("Step error getting path range, first half 'start %s' 'top %s' (i:%d): %s (%d)", start, top, i,
+                mterror(SYSCHECK_LOGTAG, "Step error getting path range, first half 'start %s' 'top %s' (i:%d): %s (%d)", start, top, i,
                        sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
                 os_free(*str_pathlh);
                 os_free(*str_pathuh);
@@ -848,7 +848,7 @@ int fim_db_get_checksum_range(fdb_t *fim_sql,
         decoded_row = fim_db_decode_string_array(fim_sql->stmt[RANGE_QUERY[type]]);
         if (decoded_row == NULL || decoded_row[0] == NULL || decoded_row[1] == NULL) {
             free_strarray(decoded_row);
-            merror("Failed to decode checksum range query");
+            mterror(SYSCHECK_LOGTAG, "Failed to decode checksum range query");
             return FIMDB_ERR;
         }
 
@@ -872,14 +872,14 @@ int fim_db_get_checksum_range(fdb_t *fim_sql,
                 break;
 
             case SQLITE_DONE:
-                mdebug2("Received a synchronization message with empty range, second half 'start %s' 'top %s' (i:%d)", start,
+                mtdebug2(SYSCHECK_LOGTAG, "Received a synchronization message with empty range, second half 'start %s' 'top %s' (i:%d)", start,
                         top, i);
                 os_free(*str_pathlh);
                 os_free(*str_pathuh);
                 return FIMDB_ERR;
 
             default:
-                merror("Step error getting path range, second half 'start %s' 'top %s' (i:%d): %s (%d)", start, top, i,
+                mterror(SYSCHECK_LOGTAG, "Step error getting path range, second half 'start %s' 'top %s' (i:%d): %s (%d)", start, top, i,
                        sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
                 os_free(*str_pathlh);
                 os_free(*str_pathuh);
@@ -891,7 +891,7 @@ int fim_db_get_checksum_range(fdb_t *fim_sql,
             free_strarray(decoded_row);
             os_free(*str_pathlh);
             os_free(*str_pathuh);
-            merror("Failed to decode checksum range query");
+            mterror(SYSCHECK_LOGTAG, "Failed to decode checksum range query");
             return FIMDB_ERR;
         }
 
@@ -908,7 +908,7 @@ int fim_db_get_checksum_range(fdb_t *fim_sql,
     }
 
     if (*str_pathlh == NULL || *str_pathuh == NULL) {
-        merror("Failed to obtain required paths in order to form message");
+        mterror(SYSCHECK_LOGTAG, "Failed to obtain required paths in order to form message");
         os_free(*str_pathlh);
         os_free(*str_pathuh);
         return FIMDB_ERR;
@@ -956,13 +956,13 @@ int fim_db_read_line_from_file(fim_tmp_file *file, int storage, int it, char **b
         char path_length[OS_SIZE_32 + 1];
 
         if (it == 0 && fseek(file->fd, 0, SEEK_SET) != 0) {
-            mwarn(FIM_DB_TEMPORARY_FILE_POSITION, errno, strerror(errno));
+            mtwarn(SYSCHECK_LOGTAG, FIM_DB_TEMPORARY_FILE_POSITION, errno, strerror(errno));
             return -1;
         }
 
         /* First 32 bytes hold the path length including the line break */
         if (fgets(path_length, OS_SIZE_32 + 1, file->fd) == NULL) {
-            mdebug1(FIM_UNABLE_TO_READ_TEMP_FILE);
+            mtdebug1(SYSCHECK_LOGTAG, FIM_UNABLE_TO_READ_TEMP_FILE);
             return -1;
         }
 
@@ -972,7 +972,7 @@ int fim_db_read_line_from_file(fim_tmp_file *file, int storage, int it, char **b
         // fgets() adds \n(newline) to the end of the string,
         // So it must be removed.
         if (fgets(line, len + 1, file->fd) == NULL) {
-            mdebug1(FIM_UNABLE_TO_READ_TEMP_FILE);
+            mtdebug1(SYSCHECK_LOGTAG, FIM_UNABLE_TO_READ_TEMP_FILE);
             os_free(line);
             return -1;
         }
@@ -981,7 +981,7 @@ int fim_db_read_line_from_file(fim_tmp_file *file, int storage, int it, char **b
             line[len - 1] = '\0';
         }
         else {
-            merror("Temporary path file '%s' is corrupt: missing line end.", file->path);
+            mterror(SYSCHECK_LOGTAG, "Temporary path file '%s' is corrupt: missing line end.", file->path);
             os_free(line);
             return -1;
         }
@@ -990,7 +990,7 @@ int fim_db_read_line_from_file(fim_tmp_file *file, int storage, int it, char **b
         os_free(line);
     } else {
         if (it > file->list->size) {
-            merror("Attempted to retrieve an out of bounds line.");
+            mterror(SYSCHECK_LOGTAG, "Attempted to retrieve an out of bounds line.");
             return 1;
         }
         *buffer = wstr_unescape_json((char *) W_Vector_get(file->list, it));
@@ -1009,7 +1009,7 @@ int fim_db_get_count_entries(fdb_t * fim_sql) {
     int res = fim_db_get_count(fim_sql, FIMDB_STMT_COUNT_DB_ENTRIES);
 
     if(res == FIMDB_ERR) {
-        merror("Step error getting count entry path: %s (%d)", sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+        mterror(SYSCHECK_LOGTAG, "Step error getting count entry path: %s (%d)", sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
     }
     return res;
 }

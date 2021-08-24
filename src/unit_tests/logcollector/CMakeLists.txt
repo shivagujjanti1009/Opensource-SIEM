@@ -20,15 +20,15 @@ list(APPEND logcollector_flags "-Wl,--wrap,OSHash_Add_ex -Wl,--wrap,OSHash_Add -
                                 -Wl,--wrap,OSHash_Delete_ex -Wl,--wrap,OSHash_Create -Wl,--wrap,OSHash_Update_ex \
                                 -Wl,--wrap,OS_SHA1_Stream -Wl,--wrap,merror_exit -Wl,--wrap,OSHash_setSize -Wl,--wrap,OSHash_SetFreeDataPointer \
                                 -Wl,--wrap,fopen -Wl,--wrap,fclose -Wl,--wrap,fflush -Wl,--wrap,fgets -Wl,--wrap,fread -Wl,--wrap,fseek \
-                                -Wl,--wrap,fwrite -Wl,--wrap,remove -Wl,--wrap,_merror -Wl,--wrap,fgetpos -Wl,--wrap,OSHash_Begin \
+                                -Wl,--wrap,fwrite -Wl,--wrap,remove -Wl,--wrap,_mterror -Wl,--wrap,fgetpos -Wl,--wrap,OSHash_Begin \
                                 -Wl,--wrap,cJSON_CreateObject -Wl,--wrap,cJSON_AddArrayToObject -Wl,--wrap,cJSON_AddStringToObject \
                                 -Wl,--wrap,cJSON_AddStringToObject -Wl,--wrap,cJSON_AddItemToArray -Wl,--wrap,OSHash_Next \
-                                -Wl,--wrap,cJSON_PrintUnformatted -Wl,--wrap,cJSON_Delete -Wl,--wrap,wfopen -Wl,--wrap,_merror_exit -Wl,--wrap,clearerr \
+                                -Wl,--wrap,cJSON_PrintUnformatted -Wl,--wrap,cJSON_Delete -Wl,--wrap,wfopen -Wl,--wrap,_mterror_exit -Wl,--wrap,clearerr \
                                 -Wl,--wrap,cJSON_GetObjectItem -Wl,--wrap,cJSON_GetArraySize -Wl,--wrap,cJSON_GetArrayItem \
                                 -Wl,--wrap,cJSON_GetStringValue -Wl,--wrap,OS_SHA1_File_Nbytes -Wl,--wrap,fileno -Wl,--wrap,fstat \
                                 -Wl,--wrap,pthread_rwlock_rdlock -Wl,--wrap,pthread_rwlock_unlock \
                                 -Wl,--wrap,stat -Wl,--wrap=fgetc -Wl,--wrap=w_fseek -Wl,--wrap,w_ftell -Wl,--wrap,OS_SHA1_File_Nbytes_with_fp_check \
-                                -Wl,--wrap,_mdebug1")
+                                -Wl,--wrap,_mdebug1 -Wl,--wrap,_mtdebug1")
 
 list(APPEND logcollector_names "test_read_multiline_regex")
 list(APPEND logcollector_flags "-Wl,--wrap,fopen -Wl,--wrap,fclose -Wl,--wrap,fflush -Wl,--wrap,fgets \
@@ -49,8 +49,8 @@ list(APPEND logcollector_flags "-Wl,--wrap,fopen -Wl,--wrap,fclose -Wl,--wrap,ff
                                 -Wl,--wrap,fgetpos -Wl,--wrap,time -Wl,--wrap,OSHash_Add_ex -Wl,--wrap,OSHash_Add \
                                 -Wl,--wrap,OSHash_Get_ex -Wl,--wrap,OSHash_Get -Wl,--wrap,OSHash_Delete_ex \
                                 -Wl,--wrap,OSHash_Next -Wl,--wrap,OSHash_Create -Wl,--wrap,OSHash_Update \
-                                -Wl,--wrap,OSHash_setSize -Wl,--wrap,OSHash_Begin -Wl,--wrap,_merror_exit \
-                                -Wl,--wrap,cJSON_CreateObject -Wl,--wrap,cJSON_CreateArray -Wl,--wrap,_merror \
+                                -Wl,--wrap,OSHash_setSize -Wl,--wrap,OSHash_Begin -Wl,--wrap,_mterror_exit \
+                                -Wl,--wrap,cJSON_CreateObject -Wl,--wrap,cJSON_CreateArray -Wl,--wrap,_mterror \
                                 -Wl,--wrap,cJSON_AddStringToObject -Wl,--wrap,cJSON_AddNumberToObject \
                                 -Wl,--wrap,cJSON_AddItemToArray -Wl,--wrap,cJSON_AddItemToObject \
                                 -Wl,--wrap,pthread_mutex_unlock -Wl,--wrap,pthread_mutex_lock \
@@ -60,7 +60,7 @@ list(APPEND logcollector_flags "-Wl,--wrap,fopen -Wl,--wrap,fclose -Wl,--wrap,ff
 
 list(APPEND logcollector_names "test_lccom")
 list(APPEND logcollector_flags "-Wl,--wrap,w_logcollector_state_get -Wl,--wrap,cJSON_CreateObject \
-                                -Wl,--wrap,_mdebug1 -Wl,--wrap,cJSON_AddNumberToObject \
+                                -Wl,--wrap,_mtdebug1 -Wl,--wrap,cJSON_AddNumberToObject \
                                 -Wl,--wrap,cJSON_AddObjectToObject -Wl,--wrap,cJSON_AddStringToObject \
                                 -Wl,--wrap,cJSON_AddItemToObject -Wl,--wrap,cJSON_PrintUnformatted \
                                 -Wl,--wrap,cJSON_Delete")

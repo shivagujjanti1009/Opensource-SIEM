@@ -363,7 +363,7 @@ int fim_db_insert_data(fdb_t *fim_sql, const fim_file_data *entry, int *row_id) 
         fim_db_bind_insert_data(fim_sql, entry);
 
         if (res = sqlite3_step(fim_sql->stmt[FIMDB_STMT_INSERT_DATA]), res != SQLITE_DONE) {
-            merror("Step error inserting data row_id '%d': %s (%d)", *row_id, sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+            mterror(SYSCHECK_LOGTAG, "Step error inserting data row_id '%d': %s (%d)", *row_id, sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
             return FIMDB_ERR;
         }
 
@@ -374,7 +374,7 @@ int fim_db_insert_data(fdb_t *fim_sql, const fim_file_data *entry, int *row_id) 
         fim_db_bind_update_data(fim_sql, entry, row_id);
 
         if (res = sqlite3_step(fim_sql->stmt[FIMDB_STMT_UPDATE_DATA]), res != SQLITE_DONE) {
-            merror("Step error updating data row_id '%d': %s (%d)", *row_id, sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+            mterror(SYSCHECK_LOGTAG, "Step error updating data row_id '%d': %s (%d)", *row_id, sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
             return FIMDB_ERR;
         }
     }
@@ -389,7 +389,7 @@ int fim_db_insert_path(fdb_t *fim_sql, const char *file_path, const fim_file_dat
     fim_db_bind_replace_path(fim_sql, file_path, inode_id, entry);
 
     if (res = sqlite3_step(fim_sql->stmt[FIMDB_STMT_REPLACE_PATH]), res != SQLITE_DONE) {
-            merror("Step error replacing path '%s': %s (%d)", file_path, sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+            mterror(SYSCHECK_LOGTAG, "Step error replacing path '%s': %s (%d)", file_path, sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
             return FIMDB_ERR;
     }
 
@@ -406,12 +406,12 @@ int fim_db_insert(fdb_t *fim_sql, const char *file_path, const fim_file_data *ne
         if (syscheck.file_limit_enabled) {
             nodes_count = fim_db_get_count_entries(syscheck.database);
             if (nodes_count < 0) {
-                mwarn(FIM_DATABASE_NODES_COUNT_FAIL);
+                mtwarn(SYSCHECK_LOGTAG, FIM_DATABASE_NODES_COUNT_FAIL);
                 return FIMDB_ERR;
             }
             if (nodes_count >= syscheck.file_limit) {
                 fim_sql->full = true;
-                mdebug1("Couldn't insert '%s' entry into DB. The DB is full, please check your configuration.",
+                mtdebug1(SYSCHECK_LOGTAG, "Couldn't insert '%s' entry into DB. The DB is full, please check your configuration.",
                         file_path);
                 return FIMDB_FULL;
             }
@@ -433,7 +433,7 @@ int fim_db_insert(fdb_t *fim_sql, const char *file_path, const fim_file_data *ne
             fim_db_bind_delete_data_id(fim_sql, inode_id);
 
             if (sqlite3_step(fim_sql->stmt[FIMDB_STMT_DELETE_DATA]) != SQLITE_DONE) {
-                merror("Step error deleting data: %s (%d)", sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+                mterror(SYSCHECK_LOGTAG, "Step error deleting data: %s (%d)", sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
                 return FIMDB_ERR;
             }
             fim_db_force_commit(fim_sql);
@@ -459,7 +459,7 @@ int fim_db_insert(fdb_t *fim_sql, const char *file_path, const fim_file_data *ne
     break;
 
     default:
-        merror("Step error getting data row: %s (%d)", sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+        mterror(SYSCHECK_LOGTAG, "Step error getting data row: %s (%d)", sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
         return FIMDB_ERR;
     }
 
@@ -539,7 +539,7 @@ int fim_db_set_scanned(fdb_t *fim_sql, const char *path) {
     fim_db_bind_set_scanned(fim_sql, path);
 
     if (sqlite3_step(fim_sql->stmt[FIMDB_STMT_SET_SCANNED]) != SQLITE_DONE) {
-        merror("Step error setting scanned path '%s': %s (%d)", path, sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+        mterror(SYSCHECK_LOGTAG, "Step error setting scanned path '%s': %s (%d)", path, sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
         return FIMDB_ERR;
     }
 
@@ -552,7 +552,7 @@ int fim_db_get_count_file_data(fdb_t * fim_sql) {
     int res = fim_db_get_count(fim_sql, FIMDB_STMT_GET_COUNT_DATA);
 
     if(res == FIMDB_ERR) {
-        merror("Step error getting count entry data: %s (%d)", sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+        mterror(SYSCHECK_LOGTAG, "Step error getting count entry data: %s (%d)", sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
     }
     return res;
 }
@@ -561,7 +561,7 @@ int fim_db_get_count_file_entry(fdb_t * fim_sql) {
     int res = fim_db_get_count(fim_sql, FIMDB_STMT_GET_COUNT_PATH);
 
     if(res == FIMDB_ERR) {
-        merror("Step error getting count entry path: %s (%d)", sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
+        mterror(SYSCHECK_LOGTAG, "Step error getting count entry path: %s (%d)", sqlite3_errmsg(fim_sql->db), sqlite3_extended_errcode(fim_sql->db));
     }
     return res;
 }
@@ -605,7 +605,7 @@ int fim_db_file_is_scanned(fdb_t *fim_sql, const char *path) {
     case SQLITE_DONE:
         return 0;
     case SQLITE_ERROR:
-        mdebug2(FIM_DB_FAIL_TO_GET_SCANNED_FILE, path, sqlite3_errmsg(fim_sql->db));
+        mtdebug2(SYSCHECK_LOGTAG, FIM_DB_FAIL_TO_GET_SCANNED_FILE, path, sqlite3_errmsg(fim_sql->db));
         // Fallthrough
     default:
         return FIMDB_ERR;

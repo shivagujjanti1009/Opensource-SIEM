@@ -181,7 +181,6 @@ static int setup_group(void **state) {
         return -1;
 
     test_mode = 0;
-    expect_any_always(__wrap__mdebug1, formatted_msg);
 
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
@@ -189,8 +188,31 @@ static int setup_group(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
     expect_function_call_any(__wrap_pthread_rwlock_rdlock);
 
+    will_return(__wrap_getDefine_Int, 5);
+    will_return(__wrap_getDefine_Int, 256);
+    will_return(__wrap_getDefine_Int, 1024);
+    will_return(__wrap_getDefine_Int, 600);
+#ifndef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 4096);
+#endif //TEST_WINAGENT
+#ifndef TEST_SERVER
+    will_return(__wrap_getDefine_Int, 0);
+#endif //TEST_SERVER
+#ifdef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 1024);
+#endif //TEST_WINAGENT
+
     // Read and setup global values.
-    Read_Syscheck_Config("test_syscheck.conf");
+    OS_XML xml;
+    XML_NODE node;
+    XML_NODE chld_node;
+    OS_ReadXML("test_syscheck.conf", &xml);
+    node = OS_GetElementsbyNode(&xml, NULL);
+    chld_node = OS_GetElementsbyNode(&xml, node[0]);
+    Read_Syscheck(&xml, chld_node, &syscheck, CWMODULE, 0);
+    OS_ClearNode(chld_node);
+    OS_ClearNode(node);
+    OS_ClearXML(&xml);
 
     syscheck.rt_delay = 1;
     syscheck.max_depth = 256;
@@ -268,7 +290,6 @@ static int setup_root_group(void **state) {
         return -1;
 
     test_mode = 0;
-    expect_any_always(__wrap__mdebug1, formatted_msg);
 
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
@@ -276,8 +297,30 @@ static int setup_root_group(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
     expect_function_call_any(__wrap_pthread_rwlock_rdlock);
 
+    will_return(__wrap_getDefine_Int, 5);
+    will_return(__wrap_getDefine_Int, 256);
+    will_return(__wrap_getDefine_Int, 1024);
+    will_return(__wrap_getDefine_Int, 600);
+#ifndef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 4096);
+#endif //TEST_WINAGENT
+#ifndef TEST_SERVER
+    will_return(__wrap_getDefine_Int, 0);
+#endif //TEST_SERVER
+#ifdef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 1024);
+#endif //TEST_WINAGENT
     // Read and setup global values.
-    Read_Syscheck_Config("test_syscheck_top_level.conf");
+    OS_XML xml;
+    XML_NODE node;
+    XML_NODE chld_node;
+    OS_ReadXML("test_syscheck_top_level.conf", &xml);
+    node = OS_GetElementsbyNode(&xml, NULL);
+    chld_node = OS_GetElementsbyNode(&xml, node[0]);
+    Read_Syscheck(&xml, chld_node, &syscheck, CWMODULE, 0);
+    OS_ClearNode(chld_node);
+    OS_ClearNode(node);
+    OS_ClearXML(&xml);
 
     syscheck.rt_delay = 1;
     syscheck.max_depth = 256;
@@ -1020,7 +1063,8 @@ static void test_fim_audit_json(void **state) {
 static void test_fim_check_ignore_strncasecmp(void **state) {
    int ret;
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6204): Ignoring 'file' '/EtC/dumPDateS' due to '/etc/dumpdates'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6204): Ignoring 'file' '/EtC/dumPDateS' due to '/etc/dumpdates'");
 
     ret = fim_check_ignore("/EtC/dumPDateS");
 
@@ -1038,7 +1082,8 @@ static void test_fim_check_ignore_strncasecmp(void **state) {
 
     snprintf(debug_msg, OS_MAXSTR, "(6204): Ignoring 'file' '%s' due to '%s'", expanded_path, syscheck.ignore[0]);
 
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
 
 
     ret = fim_check_ignore(expanded_path);
@@ -1051,9 +1096,11 @@ static void test_fim_check_ignore_regex(void **state) {
    int ret;
 
 #ifndef TEST_WINAGENT
-    expect_string(__wrap__mdebug2, formatted_msg, "(6205): Ignoring 'file' '/test/files/test.swp' due to sregex '.log$|.swp$'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6205): Ignoring 'file' '/test/files/test.swp' due to sregex '.log$|.swp$'");
 #else
-    expect_string(__wrap__mdebug2, formatted_msg, "(6205): Ignoring 'file' '/test/files/test.swp' due to sregex '.log$|.htm$|.jpg$|.png$|.chm$|.pnf$|.evtx$|.swp$'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6205): Ignoring 'file' '/test/files/test.swp' due to sregex '.log$|.htm$|.jpg$|.png$|.chm$|.pnf$|.evtx$|.swp$'");
 #endif
 
     ret = fim_check_ignore("/test/files/test.swp");
@@ -1093,7 +1140,8 @@ static void test_fim_check_restrict_failure(void **state) {
     restriction = calloc(1, sizeof(OSMatch));
     OSMatch_Compile("test$", restriction, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6203): Ignoring entry 'my_test_' due to restriction 'test$'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6203): Ignoring entry 'my_test_' due to restriction 'test$'");
 
     ret = fim_check_restrict("my_test_", restriction);
     OSMatch_FreePattern(restriction);
@@ -1109,7 +1157,8 @@ static void test_fim_check_restrict_null_filename(void **state) {
     restriction = calloc(1, sizeof(OSMatch));
     OSMatch_Compile("test$", restriction, 0);
 
-    expect_string(__wrap__merror, formatted_msg, "(1105): Attempted to use null string.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(1105): Attempted to use null string.");
 
     ret = fim_check_restrict(NULL, restriction);
     OSMatch_FreePattern(restriction);
@@ -1323,7 +1372,8 @@ static void test_fim_configuration_directory_not_found(void **state) {
     const char *path = "/invalid";
     directory_t *ret;
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6319): No configuration found for (file):'/invalid'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6319): No configuration found for (file):'/invalid'");
 
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
@@ -1538,8 +1588,10 @@ static void test_fim_file_no_attributes(void **state) {
     snprintf(buffer1, OS_SIZE_256, FIM_HASHES_FAIL, file_path);
     snprintf(buffer2, OS_SIZE_256, FIM_GET_ATTRIBUTES, file_path);
 
-    expect_string(__wrap__mdebug1, formatted_msg, buffer1);
-    expect_string(__wrap__mdebug1, formatted_msg, buffer2);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, buffer1);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, buffer2);
 
 
     fim_file(file_path, &configuration, &evt_data);
@@ -1641,8 +1693,8 @@ static void test_fim_checker_scheduled_configuration_directory_error(void **stat
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 #endif
-
-    expect_string(__wrap__mdebug2, formatted_msg, "(6319): No configuration found for (file):'/not/found/test.file'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6319): No configuration found for (file):'/not/found/test.file'");
 
     fim_checker(path, &evt_data, NULL);
 }
@@ -1662,8 +1714,8 @@ static void test_fim_checker_not_scheduled_configuration_directory_error(void **
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 #endif
-
-    expect_string(__wrap__mdebug2, formatted_msg, "(6319): No configuration found for (file):'/not/found/test.file'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6319): No configuration found for (file):'/not/found/test.file'");
 
     fim_checker(path, &evt_data, NULL);
 }
@@ -1681,7 +1733,8 @@ static void test_fim_checker_over_max_recursion_level(void **state) {
 
     ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 3))->recursion_level = 0;
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6217): Maximum level of recursion reached. Depth:1 recursion_level:0 '/media/a/test.file'");
 
     fim_checker(path, &evt_data, NULL);
@@ -1700,7 +1753,8 @@ static void test_fim_checker_deleted_file(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
     expect_function_call_any(__wrap_pthread_rwlock_rdlock);
 
-    expect_string(__wrap__mdebug1, formatted_msg,
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg,
                   "(6222): Stat() function failed on: '/media/test.file' due to [(1)-(Operation not permitted)]");
 
     expect_string(__wrap_lstat, filename, path);
@@ -1894,7 +1948,8 @@ static void test_fim_checker_fim_regular_ignore(void **state) {
     expect_string(__wrap_HasFilesystem, path, "/etc/mtab");
     will_return(__wrap_HasFilesystem, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6204): Ignoring 'file' '/etc/mtab' due to '/etc/mtab'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6204): Ignoring 'file' '/etc/mtab' due to '/etc/mtab'");
 
     fim_checker(path, &evt_data, NULL);
 }
@@ -1917,7 +1972,8 @@ static void test_fim_checker_fim_regular_restrict(void **state) {
     expect_string(__wrap_HasFilesystem, path, path);
     will_return(__wrap_HasFilesystem, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6203): Ignoring entry '/media/test' due to restriction 'file$'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6203): Ignoring entry '/media/test' due to restriction 'file$'");
 
     fim_checker(path, &evt_data, NULL);
 }
@@ -2002,7 +2058,8 @@ static void test_fim_checker_fim_directory_on_max_recursion_level(void **state) 
 
     will_return(__wrap_readdir, NULL);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6347): Directory '/media/test' is already on the max recursion_level (0), it will not be scanned.");
 
     fim_checker(path, &evt_data, NULL);
@@ -2020,7 +2077,8 @@ static void test_fim_checker_root_ignore_file_under_recursion_level(void **state
     expect_function_call_any(__wrap_pthread_mutex_unlock);
     expect_function_call_any(__wrap_pthread_rwlock_rdlock);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6217): Maximum level of recursion reached. Depth:1 recursion_level:0 '/media/test.file'");
 
     fim_checker(path, &evt_data, NULL);
@@ -2081,7 +2139,8 @@ static void test_fim_scan_db_full_double_scan(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_STARTED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_STARTED);
 
     // fim_diff_folder_size
     expect_string(__wrap_IsDir, file, "queue/diff/local");
@@ -2090,7 +2149,8 @@ static void test_fim_scan_db_full_double_scan(void **state) {
     expect_string(__wrap_DirSize, path, "queue/diff/local");
     will_return(__wrap_DirSize, 0.0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
 
     // First scan
     OSList_foreach(node_it, syscheck.directories) {
@@ -2167,18 +2227,21 @@ static void test_fim_scan_db_full_double_scan(void **state) {
 
     will_return(__wrap_readdir, NULL);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
     expect_value(__wrap_fim_db_set_all_unscanned, fim_sql, syscheck.database);
     will_return(__wrap_fim_db_set_all_unscanned, 0);
 
     // fim_check_db_state
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 50000);
-    expect_string(__wrap__mwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":50000,\"alert_type\":\"full\"}");
     will_return(__wrap_send_log_msg, 1);
 
     // fim_send_scan_info
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_ENDED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_ENDED);
 
     fim_scan();
 }
@@ -2195,7 +2258,8 @@ static void test_fim_scan_db_full_not_double_scan(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_STARTED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_STARTED);
 
     // fim_diff_folder_size
     expect_string(__wrap_IsDir, file, "queue/diff/local");
@@ -2204,7 +2268,8 @@ static void test_fim_scan_db_full_not_double_scan(void **state) {
     expect_string(__wrap_DirSize, path, "queue/diff/local");
     will_return(__wrap_DirSize, 0.0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
 
     // First scan
     OSList_foreach(node_it, syscheck.directories) {
@@ -2239,10 +2304,12 @@ static void test_fim_scan_db_full_not_double_scan(void **state) {
     expect_value(__wrap_fim_db_set_all_unscanned, fim_sql, syscheck.database);
     will_return(__wrap_fim_db_set_all_unscanned, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 50000);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_ENDED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_ENDED);
 
     fim_scan();
 }
@@ -2263,7 +2330,8 @@ static void test_fim_scan_realtime_enabled(void **state) {
 
     syscheck.realtime = &realtime;
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_STARTED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_STARTED);
 
     // fim_diff_folder_size
     expect_string(__wrap_IsDir, file, "queue/diff/local");
@@ -2272,7 +2340,8 @@ static void test_fim_scan_realtime_enabled(void **state) {
     expect_string(__wrap_DirSize, path, "queue/diff/local");
     will_return(__wrap_DirSize, 0.0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
 
     // First scan
     OSList_foreach(node_it, syscheck.directories) {
@@ -2308,22 +2377,27 @@ static void test_fim_scan_realtime_enabled(void **state) {
     // fim_scan
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 50000);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
 
     // fim_check_db_state
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 50000);
 
     // realtime_sanitize_watch_map
-    expect_any(__wrap__mdebug2, formatted_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_any(__wrap__mtdebug2, formatted_msg);
 
     // fim_scan
-    expect_string(__wrap__mdebug2, formatted_msg, "(6345): Folders monitored with real-time engine: 10");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6345): Folders monitored with real-time engine: 10");
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":50000,\"alert_type\":\"full\"}");
     will_return(__wrap_send_log_msg, 1);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_ENDED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_ENDED);
 
     fim_scan();
 
@@ -2341,7 +2415,8 @@ static void test_fim_scan_db_free(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_STARTED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_STARTED);
 
     // fim_diff_folder_size
     expect_string(__wrap_IsDir, file, "queue/diff/local");
@@ -2350,7 +2425,8 @@ static void test_fim_scan_db_free(void **state) {
     expect_string(__wrap_DirSize, path, "queue/diff/local");
     will_return(__wrap_DirSize, 0.0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
 
     // First scan
     OSList_foreach(node_it, syscheck.directories) {
@@ -2382,18 +2458,21 @@ static void test_fim_scan_db_free(void **state) {
     will_return(__wrap_fim_db_get_not_scanned, NULL);
     will_return(__wrap_fim_db_get_not_scanned, FIMDB_OK);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 1000);
 
     expect_value(__wrap_fim_db_set_all_unscanned, fim_sql, syscheck.database);
     will_return(__wrap_fim_db_set_all_unscanned, 0);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6038): Sending DB back to normal alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6038): Sending DB back to normal alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":1000,\"alert_type\":\"normal\"}");
     will_return(__wrap_send_log_msg, 1);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_ENDED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_ENDED);
 
     fim_scan();
 }
@@ -2409,7 +2488,8 @@ static void test_fim_scan_no_limit(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_STARTED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_STARTED);
 
     // fim_diff_folder_size
     expect_string(__wrap_IsDir, file, "queue/diff/local");
@@ -2418,7 +2498,8 @@ static void test_fim_scan_no_limit(void **state) {
     expect_string(__wrap_DirSize, path, "queue/diff/local");
     will_return(__wrap_DirSize, 0.0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
 
     // First scan
     OSList_foreach(node_it, syscheck.directories) {
@@ -2451,10 +2532,12 @@ static void test_fim_scan_no_limit(void **state) {
     expect_value(__wrap_fim_db_set_all_unscanned, fim_sql, syscheck.database);
     will_return(__wrap_fim_db_set_all_unscanned, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6343): No limit set to maximum number of entries to be monitored");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6343): No limit set to maximum number of entries to be monitored");
 
     // In fim_scan
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_ENDED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_ENDED);
 
     fim_scan();
 }
@@ -2535,7 +2618,8 @@ void test_fim_delete_file_event_remove_success(void **state) {
     // inside fim_json_event
     expect_wrapper_fim_db_get_paths_from_inode(syscheck.database, 606060, 12345678, NULL);
     snprintf(buffer, OS_SIZE_128, FIM_FILE_MSG_DELETE, fim_data->fentry->file_entry.path);
-    expect_string(__wrap__mdebug2, formatted_msg, buffer);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, buffer);
 
     fim_delete_file_event(syscheck.database, fim_data->fentry, &syscheck.fim_entry_mutex, &evt_data, NULL, NULL);
 }
@@ -2580,9 +2664,11 @@ void test_fim_delete_file_event_no_conf(void **state) {
     snprintf(buffer_config, OS_SIZE_128, FIM_CONFIGURATION_NOTFOUND, "file", fim_data->fentry->file_entry.path);
 
     // Inside fim_configuration_directory
-    expect_string(__wrap__mdebug2, formatted_msg, buffer_config);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, buffer_config);
 
-    expect_string(__wrap__mdebug2, formatted_msg, buffer_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, buffer_msg);
 
     fim_delete_file_event(syscheck.database, fim_data->fentry, &syscheck.fim_entry_mutex, &evt_data, NULL, NULL);
 }
@@ -2624,7 +2710,8 @@ void test_fim_delete_file_event_different_mode_scheduled(void **state) {
     // inside fim_json_event
     expect_wrapper_fim_db_get_paths_from_inode(syscheck.database, 606060, 12345678, NULL);
     snprintf(buffer, OS_SIZE_128, FIM_FILE_MSG_DELETE, fim_data->fentry->file_entry.path);
-    expect_string(__wrap__mdebug2, formatted_msg, buffer);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, buffer);
 
     fim_delete_file_event(syscheck.database, fim_data->fentry, &syscheck.fim_entry_mutex, &evt_data, NULL, NULL);
 }
@@ -2742,7 +2829,8 @@ void test_fim_delete_file_event_report_changes(void **state) {
     expect_fim_diff_process_delete_file(fim_data->fentry->file_entry.path, 0);
 
     snprintf(buffer, OS_SIZE_128, FIM_FILE_MSG_DELETE, fim_data->fentry->file_entry.path);
-    expect_string(__wrap__mdebug2, formatted_msg, buffer);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, buffer);
 
     fim_delete_file_event(syscheck.database, fim_data->fentry, &syscheck.fim_entry_mutex, &evt_data, NULL, NULL);
 
@@ -2771,7 +2859,8 @@ static void test_fim_checker_over_max_recursion_level(void **state) {
     snprintf(debug_msg, OS_MAXSTR,
         "(6217): Maximum level of recursion reached. Depth:1 recursion_level:0 '%s'", expanded_path);
 
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
 
     fim_checker(expanded_path, &evt_data, NULL);
 }
@@ -2788,7 +2877,8 @@ static void test_fim_checker_deleted_file(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6222): Stat() function failed on: 'c:\\windows\\system32\\drivers\\etc\\test.exe' due to [(1)-(Operation not permitted)]");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6222): Stat() function failed on: 'c:\\windows\\system32\\drivers\\etc\\test.exe' due to [(1)-(Operation not permitted)]");
 
     if(!ExpandEnvironmentStrings(path, expanded_path, OS_MAXSTR))
         fail();
@@ -2935,7 +3025,8 @@ static void test_fim_checker_fim_regular_ignore(void **state) {
     will_return(__wrap_HasFilesystem, 0);
 
     snprintf(debug_msg, OS_MAXSTR, "(6204): Ignoring 'file' '%s' due to '%s'", expanded_path, expanded_path);
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
 
     fim_checker(expanded_path, &evt_data, NULL);
 }
@@ -2966,7 +3057,8 @@ static void test_fim_checker_fim_regular_restrict(void **state) {
     will_return(__wrap_HasFilesystem, 0);
 
     snprintf(debug_msg, OS_MAXSTR, "(6203): Ignoring entry '%s' due to restriction 'wmic.exe$'", expanded_path);
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
 
     fim_checker(expanded_path, &evt_data, NULL);
 }
@@ -3052,7 +3144,8 @@ static void test_fim_checker_fim_directory(void **state) {
 
     snprintf(skip_directory_message, OS_MAXSTR,
         "(6347): Directory '%s' is already on the max recursion_level (0), it will not be scanned.", expanded_path_test);
-    expect_string(__wrap__mdebug2, formatted_msg, skip_directory_message);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, skip_directory_message);
 
     fim_checker(expanded_path, &evt_data, NULL);
 }
@@ -3068,7 +3161,8 @@ static void test_fim_checker_root_ignore_file_under_recursion_level(void **state
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6217): Maximum level of recursion reached. Depth:1 recursion_level:0 'c:\\windows\\test.file'");
 
     fim_checker(path, &evt_data, NULL);
@@ -3140,7 +3234,8 @@ static void test_fim_scan_db_full_double_scan(void **state) {
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_STARTED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_STARTED);
 
     // fim_diff_folder_size
     expect_string(__wrap_IsDir, file, "queue/diff/local");
@@ -3149,7 +3244,8 @@ static void test_fim_scan_db_full_double_scan(void **state) {
     expect_string(__wrap_DirSize, path, "queue/diff/local");
     will_return(__wrap_DirSize, 0.0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
 
     for(i = 0; i < 10; i++) {
         if(!ExpandEnvironmentStrings(directories[i], expanded_dirs[i], OS_SIZE_1024)) {
@@ -3171,14 +3267,17 @@ static void test_fim_scan_db_full_double_scan(void **state) {
 
     prepare_win_double_scan_success(test_file_path, expanded_dirs[0], file, &directory_stat,&file_stat);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 50000);
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":50000,\"alert_type\":\"full\"}");
     will_return(__wrap_send_log_msg, 1);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_ENDED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_ENDED);
     fim_scan();
 }
 
@@ -3206,7 +3305,8 @@ static void test_fim_scan_db_full_not_double_scan(void **state) {
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_STARTED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_STARTED);
 
     // fim_diff_folder_size
     expect_string(__wrap_IsDir, file, "queue/diff/local");
@@ -3215,7 +3315,8 @@ static void test_fim_scan_db_full_not_double_scan(void **state) {
     expect_string(__wrap_DirSize, path, "queue/diff/local");
     will_return(__wrap_DirSize, 0.0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
 
     for(i = 0; i < 10; i++) {
         if(!ExpandEnvironmentStrings(directories[i], expanded_dirs[i], OS_SIZE_1024)) {
@@ -3245,9 +3346,11 @@ static void test_fim_scan_db_full_not_double_scan(void **state) {
     will_return(__wrap_fim_db_set_all_unscanned, 0);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 50000);
-    expect_string(__wrap__mdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_ENDED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_ENDED);
 
     fim_scan();
 }
@@ -3276,7 +3379,8 @@ static void test_fim_scan_db_free(void **state) {
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_STARTED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_STARTED);
 
     // fim_diff_folder_size
     expect_string(__wrap_IsDir, file, "queue/diff/local");
@@ -3285,7 +3389,8 @@ static void test_fim_scan_db_free(void **state) {
     expect_string(__wrap_DirSize, path, "queue/diff/local");
     will_return(__wrap_DirSize, 0.0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
 
     for(i = 0; i < 10; i++) {
         if(!ExpandEnvironmentStrings(directories[i], expanded_dirs[i], OS_SIZE_1024)) {
@@ -3315,13 +3420,16 @@ static void test_fim_scan_db_free(void **state) {
     expect_value(__wrap_fim_db_set_all_unscanned, fim_sql, syscheck.database);
     will_return(__wrap_fim_db_set_all_unscanned, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6342): Maximum number of entries to be monitored: '50000'");
 
-    expect_string(__wrap__minfo, formatted_msg, "(6038): Sending DB back to normal alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6038): Sending DB back to normal alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":1000,\"alert_type\":\"normal\"}");
     will_return(__wrap_send_log_msg, 1);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_ENDED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_ENDED);
 
     fim_scan();
 }
@@ -3350,7 +3458,8 @@ static void test_fim_scan_no_limit(void **state) {
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_STARTED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_STARTED);
 
     // fim_diff_folder_size
     expect_string(__wrap_IsDir, file, "queue/diff/local");
@@ -3359,7 +3468,8 @@ static void test_fim_scan_no_limit(void **state) {
     expect_string(__wrap_DirSize, path, "queue/diff/local");
     will_return(__wrap_DirSize, 0.0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6348): Size of 'queue/diff' folder: 0.00000 KB.");
 
     for(i = 0; i < 10; i++) {
         if(!ExpandEnvironmentStrings(directories[i], expanded_dirs[i], OS_SIZE_1024)) {
@@ -3386,9 +3496,11 @@ static void test_fim_scan_no_limit(void **state) {
     expect_value(__wrap_fim_db_set_all_unscanned, fim_sql, syscheck.database);
     will_return(__wrap_fim_db_set_all_unscanned, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6343): No limit set to maximum number of entries to be monitored");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6343): No limit set to maximum number of entries to be monitored");
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_FREQUENCY_ENDED);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_FREQUENCY_ENDED);
 
     fim_scan();
 }
@@ -3476,7 +3588,8 @@ void test_fim_delete_file_event_remove_success(void **state) {
     expect_fim_db_remove_path(syscheck.database, fim_data->fentry->file_entry.path, FIMDB_OK);
 
     snprintf(buffer, OS_SIZE_128, FIM_FILE_MSG_DELETE, fim_data->fentry->file_entry.path);
-    expect_string(__wrap__mdebug2, formatted_msg, buffer);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, buffer);
 
     fim_delete_file_event(syscheck.database, fim_data->fentry, &syscheck.fim_entry_mutex, &evt_data, NULL, NULL);
 }
@@ -3524,8 +3637,10 @@ void test_fim_delete_file_event_no_conf(void **state) {
     snprintf(buffer_config, OS_SIZE_128, FIM_CONFIGURATION_NOTFOUND, "file", fim_data->fentry->file_entry.path);
 
     // Inside fim_configuration_directory
-    expect_string(__wrap__mdebug2, formatted_msg, buffer_config);
-    expect_string(__wrap__mdebug2, formatted_msg, buffer_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, buffer_config);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, buffer_msg);
 
     fim_delete_file_event(syscheck.database, fim_data->fentry, &syscheck.fim_entry_mutex, &evt_data, NULL, NULL);
 }
@@ -3571,7 +3686,8 @@ void test_fim_delete_file_event_different_mode_scheduled(void **state) {
     expect_fim_db_remove_path(syscheck.database, fim_data->fentry->file_entry.path, FIMDB_OK);
 
     snprintf(buffer, OS_SIZE_128, FIM_FILE_MSG_DELETE, fim_data->fentry->file_entry.path);
-    expect_string(__wrap__mdebug2, formatted_msg, buffer);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, buffer);
 
     fim_delete_file_event(syscheck.database, fim_data->fentry, &syscheck.fim_entry_mutex, &evt_data, NULL, NULL);
 }
@@ -3702,7 +3818,8 @@ static void test_fim_check_db_state_empty_to_full(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 50000);
-    expect_string(__wrap__mwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":50000,\"alert_type\":\"full\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -3720,7 +3837,8 @@ static void test_fim_check_db_state_full_to_empty(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 0);
-    expect_string(__wrap__minfo, formatted_msg, "(6038): Sending DB back to normal alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6038): Sending DB back to normal alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":0,\"alert_type\":\"normal\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -3738,7 +3856,8 @@ static void test_fim_check_db_state_empty_to_90_percentage(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 46000);
-    expect_string(__wrap__minfo, formatted_msg, "(6039): Sending DB 90% full alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6039): Sending DB 90% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":46000,\"alert_type\":\"90_percentage\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -3756,7 +3875,8 @@ static void test_fim_check_db_state_90_percentage_to_empty(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 0);
-    expect_string(__wrap__minfo, formatted_msg, "(6038): Sending DB back to normal alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6038): Sending DB back to normal alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":0,\"alert_type\":\"normal\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -3774,7 +3894,8 @@ static void test_fim_check_db_state_empty_to_80_percentage(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 41000);
-    expect_string(__wrap__minfo, formatted_msg, "(6039): Sending DB 80% full alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6039): Sending DB 80% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":41000,\"alert_type\":\"80_percentage\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -3792,7 +3913,8 @@ static void test_fim_check_db_state_80_percentage_to_empty(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 0);
-    expect_string(__wrap__minfo, formatted_msg, "(6038): Sending DB back to normal alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6038): Sending DB back to normal alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":0,\"alert_type\":\"normal\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -3838,7 +3960,8 @@ static void test_fim_check_db_state_normal_to_full(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 50000);
-    expect_string(__wrap__mwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":50000,\"alert_type\":\"full\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -3857,7 +3980,8 @@ static void test_fim_check_db_state_full_to_normal(void **state) {
     (void) state;
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 10000);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6038): Sending DB back to normal alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6038): Sending DB back to normal alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":10000,\"alert_type\":\"normal\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -3876,7 +4000,8 @@ static void test_fim_check_db_state_normal_to_90_percentage(void **state) {
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 46000);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6039): Sending DB 90% full alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6039): Sending DB 90% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":46000,\"alert_type\":\"90_percentage\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -3895,7 +4020,8 @@ static void test_fim_check_db_state_90_percentage_to_normal(void **state) {
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 10000);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6038): Sending DB back to normal alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6038): Sending DB back to normal alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":10000,\"alert_type\":\"normal\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -3913,7 +4039,8 @@ static void test_fim_check_db_state_normal_to_80_percentage(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 41000);
-    expect_string(__wrap__minfo, formatted_msg, "(6039): Sending DB 80% full alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6039): Sending DB 80% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":41000,\"alert_type\":\"80_percentage\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -3946,7 +4073,8 @@ static void test_fim_check_db_state_80_percentage_to_full(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 50000);
-    expect_string(__wrap__mwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":50000,\"alert_type\":\"full\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -3965,7 +4093,8 @@ static void test_fim_check_db_state_full_to_80_percentage(void **state) {
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 41000);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6039): Sending DB 80% full alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6039): Sending DB 80% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":41000,\"alert_type\":\"80_percentage\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -3983,7 +4112,8 @@ static void test_fim_check_db_state_80_percentage_to_90_percentage(void **state)
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 46000);
-    expect_string(__wrap__minfo, formatted_msg, "(6039): Sending DB 90% full alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6039): Sending DB 90% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":46000,\"alert_type\":\"90_percentage\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -4016,7 +4146,8 @@ static void test_fim_check_db_state_90_percentage_to_full(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 50000);
-    expect_string(__wrap__mwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6927): Sending DB 100% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":50000,\"alert_type\":\"full\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -4050,7 +4181,8 @@ static void test_fim_check_db_state_full_to_90_percentage(void **state) {
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 46000);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6039): Sending DB 90% full alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6039): Sending DB 90% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":46000,\"alert_type\":\"90_percentage\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -4068,7 +4200,8 @@ static void test_fim_check_db_state_90_percentage_to_80_percentage(void **state)
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 41000);
-    expect_string(__wrap__minfo, formatted_msg, "(6039): Sending DB 80% full alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6039): Sending DB 80% full alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":41000,\"alert_type\":\"80_percentage\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -4086,7 +4219,8 @@ static void test_fim_check_db_state_80_percentage_to_normal(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, 10000);
-    expect_string(__wrap__minfo, formatted_msg, "(6038): Sending DB back to normal alert.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6038): Sending DB back to normal alert.");
     expect_string(__wrap_send_log_msg, msg, "wazuh: FIM DB: {\"file_limit\":50000,\"file_count\":10000,\"alert_type\":\"normal\"}");
     will_return(__wrap_send_log_msg, 1);
 
@@ -4104,7 +4238,8 @@ static void test_fim_check_db_state_nodes_count_database_error(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
     expect_wrapper_fim_db_get_count_entries(syscheck.database, -1);
-    expect_string(__wrap__mwarn, formatted_msg, "(6948): Unable to get the number of entries in database.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6948): Unable to get the number of entries in database.");
 
     assert_int_equal(_db_state, FIM_STATE_DB_NORMAL);
 
@@ -4138,9 +4273,11 @@ static void test_fim_directory(void **state) {
     will_return(__wrap_readdir, NULL);
 
 #ifndef TEST_WINAGENT
-    expect_string(__wrap__mdebug2, formatted_msg, "(6319): No configuration found for (file):'test/test'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6319): No configuration found for (file):'test/test'");
 #else
-    expect_string(__wrap__mdebug2, formatted_msg, "(6319): No configuration found for (file):'test\\test'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6319): No configuration found for (file):'test\\test'");
 #endif
 
     ret = fim_directory("test", &evt_data, NULL);
@@ -4167,7 +4304,8 @@ static void test_fim_directory_ignore(void **state) {
 static void test_fim_directory_nodir(void **state) {
     int ret;
 
-    expect_string(__wrap__merror, formatted_msg, "(1105): Attempted to use null string.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(1105): Attempted to use null string.");
 
     ret = fim_directory(NULL, NULL, NULL);
 
@@ -4179,7 +4317,8 @@ static void test_fim_directory_opendir_error(void **state) {
 
     will_return(__wrap_opendir, 0);
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6922): Cannot open 'test': Permission denied");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6922): Cannot open 'test': Permission denied");
 
     errno = EACCES;
 
@@ -4268,7 +4407,8 @@ static void test_fim_get_data_hash_error(void **state) {
     expect_value(__wrap_OS_MD5_SHA1_SHA256_File, max_size, 0x400);
     will_return(__wrap_OS_MD5_SHA1_SHA256_File, -1);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6324): Couldn't generate hashes for 'test'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6324): Couldn't generate hashes for 'test'");
 
     fim_data->local_data = fim_get_data("test", &configuration, &statbuf);
 
@@ -4282,7 +4422,8 @@ static void test_fim_get_data_fail_to_get_file_premissions(void **state) {
                                              CHECK_MD5SUM | CHECK_SHA1SUM | CHECK_SHA256SUM };
     struct stat statbuf = DEFAULT_STATBUF;
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6325): It was not possible to extract the permissions of 'test'. Error: 5");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6325): It was not possible to extract the permissions of 'test'. Error: 5");
 
     expect_string(__wrap_w_get_file_permissions, file_path, "test");
     will_return(__wrap_w_get_file_permissions, "");
@@ -4324,7 +4465,8 @@ static void test_check_deleted_files_error(void **state) {
     will_return(__wrap_fim_db_get_not_scanned, NULL);
     will_return(__wrap_fim_db_get_not_scanned, FIMDB_ERR);
 
-    expect_string(__wrap__merror, formatted_msg, FIM_DB_ERROR_RM_NOT_SCANNED);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, FIM_DB_ERROR_RM_NOT_SCANNED);
 
     check_deleted_files();
 }
@@ -4378,7 +4520,8 @@ static void test_fim_realtime_event_file_exists(void **state) {
     will_return(__wrap_stat, 0);
 #endif
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6319): No configuration found for (file):'/test'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6319): No configuration found for (file):'/test'");
 
     fim_realtime_event("/test");
 }
@@ -4441,7 +4584,8 @@ static void test_fim_whodata_event_file_exists(void **state) {
     will_return(__wrap_stat, 0);
 #endif
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6319): No configuration found for (file):'./test/test.file'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6319): No configuration found for (file):'./test/test.file'");
 
     fim_whodata_event(fim_data->w_evt);
 }
@@ -4558,7 +4702,8 @@ static void test_fim_process_missing_entry_failure(void **state) {
     expect_value(__wrap_fim_db_process_missing_entry, storage, FIM_DB_DISK);
     will_return(__wrap_fim_db_process_missing_entry, FIMDB_ERR);
 
-    expect_string(__wrap__merror, formatted_msg, error_msg);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, error_msg);
 
     fim_process_missing_entry(path, FIM_REALTIME, NULL);
 
@@ -4600,7 +4745,8 @@ static void test_fim_process_missing_entry_data_exists(void **state) {
     expect_value(__wrap_fim_db_get_path, fim_sql, syscheck.database);
     expect_string(__wrap_fim_db_get_path, file_path, "/test");
     will_return(__wrap_fim_db_get_path, fim_data->fentry);
-    expect_string(__wrap__mdebug2, formatted_msg, "(6319): No configuration found for (file):'/test'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6319): No configuration found for (file):'/test'");
 
     fim_process_missing_entry("/test", FIM_WHODATA, fim_data->w_evt);
 }
@@ -4656,7 +4802,8 @@ static void test_fim_process_wildcard_removed_failure(void **state) {
     expect_value(__wrap_fim_db_remove_wildcard_entry, storage, FIM_DB_DISK);
     will_return(__wrap_fim_db_remove_wildcard_entry, FIMDB_ERR);
 
-    expect_string(__wrap__merror, formatted_msg, error_msg);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, error_msg);
 
     fim_process_wildcard_removed(directory0);
 
@@ -4792,7 +4939,8 @@ static void test_fim_process_file_from_db_stat_error(void **state) {
     errno = EACCES;
 
     snprintf(debug_msg, OS_SIZE_256, FIM_STAT_FAILED, entry->file_entry.path, errno, strerror(errno));
-    expect_string(__wrap__mdebug1, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, debug_msg);
 
     ret = fim_process_file_from_db(entry->file_entry.path, list, tree, &event);
 
@@ -4835,7 +4983,8 @@ static void test_fim_process_file_from_db_deleted_file_not_in_configuration(void
     errno = ENOENT;
 
     snprintf(debug_msg, OS_SIZE_256, FIM_CONFIGURATION_NOTFOUND, "file", entry->file_entry.path);
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
 
     ret = fim_process_file_from_db(entry->file_entry.path, list, tree, &event);
 
@@ -5630,8 +5779,11 @@ static void test_update_wildcards_config() {
     os_strdup(resolvedpath1, paths[0]);
     os_strdup(resolvedpath2, paths[1]);
 
-    expect_string(__wrap__mdebug2, formatted_msg, FIM_WILDCARDS_UPDATE_START);
-    expect_string(__wrap__mdebug2, formatted_msg, FIM_WILDCARDS_UPDATE_FINALIZE);
+
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, FIM_WILDCARDS_UPDATE_START);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, FIM_WILDCARDS_UPDATE_FINALIZE);
 
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
@@ -5681,10 +5833,14 @@ static void test_update_wildcards_config_remove_config() {
     snprintf(error_msg, OS_MAXSTR, FIM_WILDCARDS_REMOVE_DIRECTORY, resolvedpath1);
     snprintf(error_msg2, OS_MAXSTR, FIM_WILDCARDS_REMOVE_DIRECTORY, resolvedpath2);
 
-    expect_string(__wrap__mdebug2, formatted_msg, FIM_WILDCARDS_UPDATE_START);
-    expect_string(__wrap__mdebug2, formatted_msg, error_msg2);
-    expect_string(__wrap__mdebug2, formatted_msg, error_msg);
-    expect_string(__wrap__mdebug2, formatted_msg, FIM_WILDCARDS_UPDATE_FINALIZE);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, FIM_WILDCARDS_UPDATE_START);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, error_msg2);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, error_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, FIM_WILDCARDS_UPDATE_FINALIZE);
 
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);

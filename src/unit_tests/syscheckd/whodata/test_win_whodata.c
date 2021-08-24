@@ -156,26 +156,26 @@ int syscheck_teardown(void ** state) {
 
 int test_group_setup(void **state) {
     int ret;
-    expect_string(__wrap__mdebug1, formatted_msg, "(6287): Reading configuration file: '../test_syscheck.conf'");
-    expect_string(__wrap__mdebug1, formatted_msg, "Found ignore regex node .log$|.htm$|.jpg$|.png$|.chm$|.pnf$|.evtx$|.swp$");
-    expect_string(__wrap__mdebug1, formatted_msg, "Found ignore regex node .log$|.htm$|.jpg$|.png$|.chm$|.pnf$|.evtx$|.swp$ OK?");
-    expect_string(__wrap__mdebug1, formatted_msg, "Found ignore regex size 0");
-    expect_string(__wrap__mdebug1, formatted_msg, "Found nodiff regex node ^file");
-    expect_string(__wrap__mdebug1, formatted_msg, "Found nodiff regex node ^file OK?");
-    expect_string(__wrap__mdebug1, formatted_msg, "Found nodiff regex size 0");
-    expect_string(__wrap__mdebug1, formatted_msg, "Found nodiff regex node test_$");
-    expect_string(__wrap__mdebug1, formatted_msg, "Found nodiff regex node test_$ OK?");
-    expect_string(__wrap__mdebug1, formatted_msg, "Found nodiff regex size 1");
-    expect_string(__wrap__mdebug1, formatted_msg, "(6208): Reading Client Configuration [../test_syscheck.conf]");
-    will_return_always(__wrap_getDefine_Int, 0);
+    OS_XML xml;
+    XML_NODE node;
+    XML_NODE chld_node;
+    OS_ReadXML("../test_syscheck.conf", &xml);
+    node = OS_GetElementsbyNode(&xml, NULL);
+    chld_node = OS_GetElementsbyNode(&xml, node[0]);
 
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
     expect_function_call_any(__wrap_pthread_rwlock_rdlock);
+    expect_any_always(__wrap__mdebug1, formatted_msg);
+    will_return_always(__wrap_getDefine_Int, 0);
 
-    ret = Read_Syscheck_Config("../test_syscheck.conf");
+    ret = Read_Syscheck(&xml, chld_node, &syscheck, CWMODULE, 0);
+    OS_ClearNode(chld_node);
+    OS_ClearNode(node);
+    OS_ClearXML(&xml);
+
 
     SIZE_EVENTS = sizeof(EVT_VARIANT) * NUM_EVENTS;
     test_mode = 1;
@@ -419,7 +419,8 @@ void test_set_winsacl_failed_opening(void **state) {
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
     snprintf(debug_msg, OS_MAXSTR, FIM_SACL_CONFIGURE, ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->path);
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -427,7 +428,8 @@ void test_set_winsacl_failed_opening(void **state) {
     will_return(wrap_OpenProcessToken, 0);
 
     will_return(wrap_GetLastError, (unsigned int) 500);
-    expect_string(__wrap__merror, formatted_msg, "(6648): OpenProcessToken() failed. Error '500'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6648): OpenProcessToken() failed. Error '500'.");
 
     set_winsacl(((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->path, ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0)));
 }
@@ -441,7 +443,8 @@ void test_set_winsacl_failed_privileges(void **state) {
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
     snprintf(debug_msg, OS_MAXSTR, FIM_SACL_CONFIGURE, ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->path);
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -453,10 +456,12 @@ void test_set_winsacl_failed_privileges(void **state) {
     will_return(wrap_LookupPrivilegeValue, 0); // Fail lookup privilege
 
     will_return(wrap_GetLastError, (unsigned int) 500);
-    expect_string(__wrap__merror, formatted_msg,  "(6647): Could not find the 'SeSecurityPrivilege' privilege. Error: 500");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,  "(6647): Could not find the 'SeSecurityPrivilege' privilege. Error: 500");
 
     will_return(wrap_GetLastError, (unsigned int) 501);
-    expect_string(__wrap__merror, formatted_msg,  "(6659): The privilege could not be activated. Error: '501'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,  "(6659): The privilege could not be activated. Error: '501'.");
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
     will_return(wrap_CloseHandle, 0);
@@ -472,7 +477,8 @@ void test_set_winsacl_failed_security_descriptor(void **state) {
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
     snprintf(debug_msg, OS_MAXSTR, FIM_SACL_CONFIGURE, ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->path);
-    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -487,7 +493,8 @@ void test_set_winsacl_failed_security_descriptor(void **state) {
     expect_value(wrap_AdjustTokenPrivileges, TokenHandle, (HANDLE)123456);
     expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
     will_return(wrap_AdjustTokenPrivileges, 1);
-    expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
 
     // GetNamedSecurity
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->path);
@@ -496,7 +503,8 @@ void test_set_winsacl_failed_security_descriptor(void **state) {
     will_return(wrap_GetNamedSecurityInfo, NULL);
     will_return(wrap_GetNamedSecurityInfo, NULL);
     will_return(wrap_GetNamedSecurityInfo, -1);
-    expect_string(__wrap__merror, formatted_msg, "(6650): GetNamedSecurityInfo() failed. Error '-1'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6650): GetNamedSecurityInfo() failed. Error '-1'");
 
     // Reduce Privilege
     expect_string(wrap_LookupPrivilegeValue, lpName, "SeSecurityPrivilege");
@@ -505,7 +513,8 @@ void test_set_winsacl_failed_security_descriptor(void **state) {
     expect_value(wrap_AdjustTokenPrivileges, TokenHandle, (HANDLE)123456);
     expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
     will_return(wrap_AdjustTokenPrivileges, 1);
-    expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
     will_return(wrap_CloseHandle, 0);
@@ -525,7 +534,8 @@ void test_set_winsacl_no_need_to_configure_acl(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -542,7 +552,8 @@ void test_set_winsacl_no_need_to_configure_acl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     // GetNamedSecurity
@@ -582,7 +593,8 @@ void test_set_winsacl_no_need_to_configure_acl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -604,7 +616,8 @@ void test_set_winsacl_unable_to_get_acl_info(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -621,7 +634,8 @@ void test_set_winsacl_unable_to_get_acl_info(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     // GetNamedSecurity
@@ -643,15 +657,18 @@ void test_set_winsacl_unable_to_get_acl_info(void **state) {
 
         will_return(wrap_GetLastError, (unsigned int) 700);
 
-        expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
     }
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
 
     will_return(wrap_GetAclInformation, NULL);
     will_return(wrap_GetAclInformation, 0);
 
-    expect_string(__wrap__merror, formatted_msg, "(6651): The size of the 'C:\\a\\path' SACL could not be obtained.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6651): The size of the 'C:\\a\\path' SACL could not be obtained.");
 
     // Inside set_privilege
     {
@@ -663,7 +680,8 @@ void test_set_winsacl_unable_to_get_acl_info(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -687,7 +705,8 @@ void test_set_winsacl_fail_to_alloc_new_sacl(void **state) {
 
     ev_sid_size = 1;
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -704,7 +723,8 @@ void test_set_winsacl_fail_to_alloc_new_sacl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     // GetNamedSecurity
@@ -726,10 +746,12 @@ void test_set_winsacl_fail_to_alloc_new_sacl(void **state) {
 
         will_return(wrap_GetLastError, (unsigned int) 700);
 
-        expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
     }
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
 
     will_return(wrap_GetAclInformation, NULL);
     will_return(wrap_GetAclInformation, 1);
@@ -737,7 +759,8 @@ void test_set_winsacl_fail_to_alloc_new_sacl(void **state) {
     expect_value(wrap_win_alloc, size, 9);
     will_return(wrap_win_alloc, NULL);
 
-    expect_string(__wrap__merror, formatted_msg, "(6652): No memory could be reserved for the new SACL of 'C:\\a\\path'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6652): No memory could be reserved for the new SACL of 'C:\\a\\path'.");
 
     // Inside set_privilege
     {
@@ -749,7 +772,8 @@ void test_set_winsacl_fail_to_alloc_new_sacl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -773,7 +797,8 @@ void test_set_winsacl_fail_to_initialize_new_sacl(void **state) {
 
     ev_sid_size = 1;
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -790,7 +815,8 @@ void test_set_winsacl_fail_to_initialize_new_sacl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     // GetNamedSecurity
@@ -812,10 +838,12 @@ void test_set_winsacl_fail_to_initialize_new_sacl(void **state) {
 
         will_return(wrap_GetLastError, (unsigned int) 700);
 
-        expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
     }
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
 
     will_return(wrap_GetAclInformation, NULL);
     will_return(wrap_GetAclInformation, 1);
@@ -828,7 +856,8 @@ void test_set_winsacl_fail_to_initialize_new_sacl(void **state) {
     expect_value(wrap_InitializeAcl, dwAclRevision, ACL_REVISION);
     will_return(wrap_InitializeAcl, 0);
 
-    expect_string(__wrap__merror, formatted_msg, "(6653): The new SACL for 'C:\\a\\path' could not be created.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6653): The new SACL for 'C:\\a\\path' could not be created.");
 
     // Inside set_privilege
     {
@@ -840,7 +869,8 @@ void test_set_winsacl_fail_to_initialize_new_sacl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -865,7 +895,8 @@ void test_set_winsacl_fail_getting_ace_from_old_sacl(void **state) {
 
     ev_sid_size = 1;
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -882,7 +913,8 @@ void test_set_winsacl_fail_getting_ace_from_old_sacl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     // GetNamedSecurity
@@ -904,10 +936,12 @@ void test_set_winsacl_fail_getting_ace_from_old_sacl(void **state) {
 
         will_return(wrap_GetLastError, (unsigned int) 700);
 
-        expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
     }
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
 
     will_return(wrap_GetAclInformation, &old_sacl_info);
     will_return(wrap_GetAclInformation, 1);
@@ -923,7 +957,8 @@ void test_set_winsacl_fail_getting_ace_from_old_sacl(void **state) {
     will_return(wrap_GetAce, NULL);
     will_return(wrap_GetAce, 0);
 
-    expect_string(__wrap__merror, formatted_msg, "(6654): The ACE number 0 for 'C:\\a\\path' could not be obtained.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6654): The ACE number 0 for 'C:\\a\\path' could not be obtained.");
 
     // Inside set_privilege
     {
@@ -935,7 +970,8 @@ void test_set_winsacl_fail_getting_ace_from_old_sacl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -960,7 +996,8 @@ void test_set_winsacl_fail_adding_old_ace_into_new_sacl(void **state) {
 
     ev_sid_size = 1;
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -977,7 +1014,8 @@ void test_set_winsacl_fail_adding_old_ace_into_new_sacl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     // GetNamedSecurity
@@ -999,10 +1037,12 @@ void test_set_winsacl_fail_adding_old_ace_into_new_sacl(void **state) {
 
         will_return(wrap_GetLastError, (unsigned int) 700);
 
-        expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
     }
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
 
     will_return(wrap_GetAclInformation, &old_sacl_info);
     will_return(wrap_GetAclInformation, 1);
@@ -1021,7 +1061,8 @@ void test_set_winsacl_fail_adding_old_ace_into_new_sacl(void **state) {
     expect_value(wrap_AddAce, pAcl, 1234);
     will_return(wrap_AddAce, 0);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6655): The ACE number 0 of 'C:\\a\\path' could not be copied to the new ACL.");
 
     // Inside set_privilege
@@ -1034,7 +1075,8 @@ void test_set_winsacl_fail_adding_old_ace_into_new_sacl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -1058,7 +1100,8 @@ void test_set_winsacl_fail_to_alloc_new_ace(void **state) {
 
     ev_sid_size = 1;
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -1075,7 +1118,8 @@ void test_set_winsacl_fail_to_alloc_new_ace(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     // GetNamedSecurity
@@ -1097,10 +1141,12 @@ void test_set_winsacl_fail_to_alloc_new_ace(void **state) {
 
         will_return(wrap_GetLastError, (unsigned int) 700);
 
-        expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
     }
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
 
     will_return(wrap_GetAclInformation, &old_sacl_info);
     will_return(wrap_GetAclInformation, 1);
@@ -1122,7 +1168,8 @@ void test_set_winsacl_fail_to_alloc_new_ace(void **state) {
     expect_value(wrap_win_alloc, size, 9);
     will_return(wrap_win_alloc, NULL);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6656): No memory could be reserved for the new ACE of 'C:\\a\\path'.");
 
     // Inside set_privilege
@@ -1135,7 +1182,8 @@ void test_set_winsacl_fail_to_alloc_new_ace(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -1162,7 +1210,8 @@ void test_set_winsacl_fail_to_copy_sid(void **state) {
 
     ev_sid_size = 1;
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -1179,7 +1228,8 @@ void test_set_winsacl_fail_to_copy_sid(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     // GetNamedSecurity
@@ -1201,10 +1251,12 @@ void test_set_winsacl_fail_to_copy_sid(void **state) {
 
         will_return(wrap_GetLastError, (unsigned int) 700);
 
-        expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
     }
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
 
     will_return(wrap_GetAclInformation, &old_sacl_info);
     will_return(wrap_GetAclInformation, 1);
@@ -1238,7 +1290,8 @@ void test_set_winsacl_fail_to_copy_sid(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -1269,7 +1322,8 @@ void test_set_winsacl_fail_to_add_ace(void **state) {
 
     ev_sid_size = 1;
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -1286,7 +1340,8 @@ void test_set_winsacl_fail_to_add_ace(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     // GetNamedSecurity
@@ -1308,10 +1363,12 @@ void test_set_winsacl_fail_to_add_ace(void **state) {
 
         will_return(wrap_GetLastError, (unsigned int) 700);
 
-        expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
     }
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
 
     will_return(wrap_GetAclInformation, &old_sacl_info);
     will_return(wrap_GetAclInformation, 1);
@@ -1338,7 +1395,8 @@ void test_set_winsacl_fail_to_add_ace(void **state) {
     expect_value(wrap_AddAce, pAcl, 1234);
     will_return(wrap_AddAce, 0);
 
-    expect_string(__wrap__merror, formatted_msg, "(6657): The new ACE could not be added to 'C:\\a\\path'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6657): The new ACE could not be added to 'C:\\a\\path'.");
 
     // Inside set_privilege
     {
@@ -1350,7 +1408,8 @@ void test_set_winsacl_fail_to_add_ace(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -1381,7 +1440,8 @@ void test_set_winsacl_fail_to_set_security_info(void **state) {
 
     ev_sid_size = 1;
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -1398,7 +1458,8 @@ void test_set_winsacl_fail_to_set_security_info(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     // GetNamedSecurity
@@ -1420,10 +1481,12 @@ void test_set_winsacl_fail_to_set_security_info(void **state) {
 
         will_return(wrap_GetLastError, (unsigned int) 700);
 
-        expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
     }
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
 
     will_return(wrap_GetAclInformation, &old_sacl_info);
     will_return(wrap_GetAclInformation, 1);
@@ -1459,7 +1522,8 @@ void test_set_winsacl_fail_to_set_security_info(void **state) {
     expect_value(wrap_SetNamedSecurityInfo, pSacl, 1234);
     will_return(wrap_SetNamedSecurityInfo, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg, "(6658): SetNamedSecurityInfo() failed. Error: '5'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6658): SetNamedSecurityInfo() failed. Error: '5'.");
 
     // Inside set_privilege
     {
@@ -1471,7 +1535,8 @@ void test_set_winsacl_fail_to_set_security_info(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -1502,7 +1567,8 @@ void test_set_winsacl_success(void **state) {
 
     ev_sid_size = 1;
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6266): The SACL of 'C:\\a\\path' will be configured.");
 
     will_return(wrap_GetCurrentProcess, (HANDLE)4321);
     expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -1519,7 +1585,8 @@ void test_set_winsacl_success(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     // GetNamedSecurity
@@ -1541,10 +1608,12 @@ void test_set_winsacl_success(void **state) {
 
         will_return(wrap_GetLastError, (unsigned int) 700);
 
-        expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
     }
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6263): Setting up SACL for 'C:\\a\\path'");
 
     will_return(wrap_GetAclInformation, &old_sacl_info);
     will_return(wrap_GetAclInformation, 1);
@@ -1590,7 +1659,8 @@ void test_set_winsacl_success(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -1616,7 +1686,8 @@ void test_set_privilege_lookup_error (void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg, "(6647): Could not find the 'SeSecurityPrivilege' privilege. Error: 5");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6647): Could not find the 'SeSecurityPrivilege' privilege. Error: 5");
 
     ret = set_privilege((HANDLE)123456, "SeSecurityPrivilege", 0);
 
@@ -1636,7 +1707,8 @@ void test_set_privilege_adjust_token_error (void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg, "(6634): AdjustTokenPrivileges() failed. Error: '5'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6634): AdjustTokenPrivileges() failed. Error: '5'");
 
     ret = set_privilege((HANDLE)123456, "SeSecurityPrivilege", 0);
 
@@ -1654,7 +1726,8 @@ void test_set_privilege_elevate_privilege (void **state) {
     expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
     will_return(wrap_AdjustTokenPrivileges, 1);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
 
     ret = set_privilege((HANDLE)123456, "SeSecurityPrivilege", 1);
 
@@ -1672,7 +1745,8 @@ void test_set_privilege_reduce_privilege (void **state) {
     expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
     will_return(wrap_AdjustTokenPrivileges, 1);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
 
     ret = set_privilege((HANDLE)123456, "SeSecurityPrivilege", 0);
 
@@ -1691,7 +1765,8 @@ void test_w_update_sacl_AllocateAndInitializeSid_error(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg, "(6683): Could not obtain the sid of Everyone. Error '5'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6683): Could not obtain the sid of Everyone. Error '5'.");
 
     ret = w_update_sacl("C:\\a\\path");
 
@@ -1716,7 +1791,8 @@ void test_w_update_sacl_OpenProcessToken_error(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg, "(6684): OpenProcessToken() failed. Error '5'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6684): OpenProcessToken() failed. Error '5'.");
 
     ret = w_update_sacl("C:\\a\\path");
 
@@ -1747,12 +1823,14 @@ void test_w_update_sacl_add_privilege_error(void **state) {
 
         will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-        expect_string(__wrap__merror, formatted_msg, "(6647): Could not find the 'SeSecurityPrivilege' privilege. Error: 5");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6647): Could not find the 'SeSecurityPrivilege' privilege. Error: 5");
     }
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg, "(6685): The privilege could not be activated. Error: '5'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6685): The privilege could not be activated. Error: '5'.");
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
     will_return(wrap_CloseHandle, 0);
@@ -1788,7 +1866,8 @@ void test_w_update_sacl_GetNamedSecurityInfo_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -1798,7 +1877,8 @@ void test_w_update_sacl_GetNamedSecurityInfo_error(void **state) {
     will_return(wrap_GetNamedSecurityInfo, NULL);
     will_return(wrap_GetNamedSecurityInfo, ERROR_FILE_NOT_FOUND);
 
-    expect_string(__wrap__merror, formatted_msg, "(6686): GetNamedSecurityInfo() failed. Error '2'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6686): GetNamedSecurityInfo() failed. Error '2'");
 
     /* Inside set_privilege */
     {
@@ -1810,7 +1890,8 @@ void test_w_update_sacl_GetNamedSecurityInfo_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -1848,7 +1929,8 @@ void test_w_update_sacl_GetAclInformation_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -1861,7 +1943,8 @@ void test_w_update_sacl_GetAclInformation_error(void **state) {
     will_return(wrap_GetAclInformation, NULL);
     will_return(wrap_GetAclInformation, 0);
 
-    expect_string(__wrap__merror, formatted_msg, "(6687): The size of the 'C:\\a\\path' SACL could not be obtained.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6687): The size of the 'C:\\a\\path' SACL could not be obtained.");
 
     /* goto end */
     /* Inside set_privilege */
@@ -1874,7 +1957,8 @@ void test_w_update_sacl_GetAclInformation_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -1912,7 +1996,8 @@ void test_w_update_sacl_alloc_new_sacl_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -1928,7 +2013,8 @@ void test_w_update_sacl_alloc_new_sacl_error(void **state) {
     expect_value(wrap_win_alloc, size, 13);
     will_return(wrap_win_alloc, NULL);
 
-    expect_string(__wrap__merror, formatted_msg, "(6688): No memory could be reserved for the new SACL of 'C:\\a\\path'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6688): No memory could be reserved for the new SACL of 'C:\\a\\path'.");
 
     /* goto end */
     /* Inside set_privilege */
@@ -1941,7 +2027,8 @@ void test_w_update_sacl_alloc_new_sacl_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -1979,7 +2066,8 @@ void test_w_update_sacl_InitializeAcl_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -2002,7 +2090,8 @@ void test_w_update_sacl_InitializeAcl_error(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6689): The new SACL for 'C:\\a\\path' could not be created. Error: '5'.");
 
     /* goto end */
@@ -2016,7 +2105,8 @@ void test_w_update_sacl_InitializeAcl_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -2054,7 +2144,8 @@ void test_w_update_sacl_alloc_ace_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -2080,7 +2171,8 @@ void test_w_update_sacl_alloc_ace_error(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6690): No memory could be reserved for the new ACE of 'C:\\a\\path'. Error: '5'.");
 
     /* goto end */
@@ -2094,7 +2186,8 @@ void test_w_update_sacl_alloc_ace_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -2133,7 +2226,8 @@ void test_w_update_sacl_CopySid_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -2161,7 +2255,8 @@ void test_w_update_sacl_CopySid_error(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6691): Could not copy the everyone SID for 'C:\\a\\path'. Error: '1-5'.");
 
     /* goto end */
@@ -2175,7 +2270,8 @@ void test_w_update_sacl_CopySid_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -2217,7 +2313,8 @@ void test_w_update_sacl_old_sacl_GetAce_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -2246,7 +2343,8 @@ void test_w_update_sacl_old_sacl_GetAce_error(void **state) {
     will_return(wrap_GetAce, NULL);
     will_return(wrap_GetAce, 0);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6692): The ACE number 0 for 'C:\\a\\path' could not be obtained.");
 
     /* goto end */
@@ -2260,7 +2358,8 @@ void test_w_update_sacl_old_sacl_GetAce_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -2302,7 +2401,8 @@ void test_w_update_sacl_old_sacl_AddAce_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -2334,7 +2434,8 @@ void test_w_update_sacl_old_sacl_AddAce_error(void **state) {
     expect_value(wrap_AddAce, pAcl, 34567);
     will_return(wrap_AddAce, 0);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6693): The ACE number 0 of 'C:\\a\\path' could not be copied to the new ACL.");
 
     /* goto end */
@@ -2348,7 +2449,8 @@ void test_w_update_sacl_old_sacl_AddAce_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -2390,7 +2492,8 @@ void test_w_update_sacl_new_sacl_AddAce_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -2427,7 +2530,8 @@ void test_w_update_sacl_new_sacl_AddAce_error(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6694): The new ACE could not be added to 'C:\\a\\path'. Error: '5'.");
 
     /* goto end */
@@ -2441,7 +2545,8 @@ void test_w_update_sacl_new_sacl_AddAce_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -2483,7 +2588,8 @@ void test_w_update_sacl_SetNamedSecurityInfo_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -2527,7 +2633,8 @@ void test_w_update_sacl_SetNamedSecurityInfo_error(void **state) {
     expect_value(wrap_SetNamedSecurityInfo, pSacl, 34567);
     will_return(wrap_SetNamedSecurityInfo, ERROR_PATH_NOT_FOUND);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6695): SetNamedSecurityInfo() failed. Error: '3'");
 
     /* goto end */
@@ -2541,7 +2648,8 @@ void test_w_update_sacl_SetNamedSecurityInfo_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -2583,7 +2691,8 @@ void test_w_update_sacl_remove_privilege_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -2636,12 +2745,14 @@ void test_w_update_sacl_remove_privilege_error(void **state) {
 
         will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-        expect_string(__wrap__merror, formatted_msg, "(6647): Could not find the 'SeSecurityPrivilege' privilege. Error: 5");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6647): Could not find the 'SeSecurityPrivilege' privilege. Error: 5");
     }
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg, "(6685): The privilege could not be activated. Error: '5'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6685): The privilege could not be activated. Error: '5'.");
 
     /* Retry set_privilege */
     {
@@ -2653,7 +2764,8 @@ void test_w_update_sacl_remove_privilege_error(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -2695,7 +2807,8 @@ void test_w_update_sacl_success(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -2750,7 +2863,8 @@ void test_w_update_sacl_success(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -2772,7 +2886,8 @@ void test_whodata_check_arch_open_registry_key_error(void **state) {
     will_return(wrap_RegOpenKeyEx, NULL);
     will_return(wrap_RegOpenKeyEx, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(1758): Unable to open registry key: 'System\\CurrentControlSet\\Control\\Session Manager\\Environment'.");
 
     ret = whodata_check_arch();
@@ -2798,7 +2913,8 @@ void test_whodata_check_arch_query_key_value_error(void **state) {
     will_return(wrap_RegQueryValueEx, NULL);
     will_return(wrap_RegQueryValueEx, ERROR_OUTOFMEMORY);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6682): Error reading 'Architecture' from Windows registry. (Error 14)");
 
     ret = whodata_check_arch();
@@ -2946,7 +3062,8 @@ void test_whodata_adapt_path_convert_system32 (void **state) {
     expect_string(__wrap_wstr_replace, replace, ":\\windows\\sysnative");
     will_return(__wrap_wstr_replace, "C:\\windows\\sysnative\\test");
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6307): Convert 'C:\\windows\\system32\\test' to 'C:\\windows\\sysnative\\test' to process the whodata event.");
 
     whodata_adapt_path(&path);
@@ -2962,7 +3079,8 @@ void test_whodata_adapt_path_convert_syswow64 (void **state) {
     expect_string(__wrap_wstr_replace, replace, ":\\windows\\system32");
     will_return(__wrap_wstr_replace, "C:\\windows\\system32\\test");
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6307): Convert 'C:\\windows\\syswow64\\test' to 'C:\\windows\\system32\\test' to process the whodata event.");
 
     whodata_adapt_path(&path);
@@ -2974,7 +3092,8 @@ void test_whodata_path_filter_file_discarded(void **state) {
     char *path = "C:\\$recycle.bin\\test.file";
     int ret;
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6289): File 'C:\\$recycle.bin\\test.file' is in the recycle bin. It will be discarded.");
 
     ret = whodata_path_filter(&path);
@@ -2993,7 +3112,8 @@ void test_whodata_path_filter_64_bit_system(void **state) {
     expect_string(__wrap_wstr_replace, replace, ":\\windows\\sysnative");
     will_return(__wrap_wstr_replace, "C:\\windows\\sysnative\\test");
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6307): Convert 'C:\\windows\\system32\\test' to 'C:\\windows\\sysnative\\test' to process the whodata event.");
 
     ret = whodata_path_filter(&path);
@@ -3024,7 +3144,8 @@ void test_get_whodata_path_error_determining_buffer_size(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6306): The path could not be processed in Whodata mode. Error: 5");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6306): The path could not be processed in Whodata mode. Error: 5");
 
     ret = get_whodata_path((const short unsigned int *)win_path);
 
@@ -3046,7 +3167,8 @@ void test_get_whodata_path_error_copying_buffer(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6306): The path could not be processed in Whodata mode. Error: 5");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6306): The path could not be processed in Whodata mode. Error: 5");
 
     ret = get_whodata_path((const short unsigned int *)win_path);
 
@@ -3087,7 +3209,8 @@ void test_is_valid_sacl_sid_error(void **state) {
 
     will_return(wrap_GetLastError, (unsigned int) 700);
 
-    expect_string(__wrap__merror, formatted_msg, "(6632): Could not obtain the sid of Everyone. Error '700'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6632): Could not obtain the sid of Everyone. Error '700'.");
 
     ret = is_valid_sacl(sacl, 0);
     assert_int_equal(ret, 2);
@@ -3104,7 +3227,8 @@ void test_is_valid_sacl_sacl_not_found(void **state) {
     expect_value(wrap_AllocateAndInitializeSid, nSubAuthorityCount, 1);
     will_return(wrap_AllocateAndInitializeSid, 1);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6267): No SACL found on target. A new one will be created.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6267): No SACL found on target. A new one will be created.");
 
     ret = is_valid_sacl(sacl, 0);
     assert_int_equal(ret, 1);
@@ -3133,7 +3257,8 @@ void test_is_valid_sacl_ace_not_found(void **state) {
     will_return(wrap_GetAce, 0);
 
     will_return(wrap_GetLastError, (unsigned int) 800);
-    expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '800'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '800'.");
 
     ret = is_valid_sacl(new_sacl, 0);
     assert_int_equal(ret, 1);
@@ -3219,9 +3344,11 @@ void test_replace_device_path_device_not_found(void **state) {
     syscheck.wdata.device[1] = strdup("\\Device\\Floppy0");
     syscheck.wdata.drive[1] = strdup("A:");
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6304): Find device '\\Device\\HarddiskVolume1' in path '\\Device\\NotFound0\\a\\path'");
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6304): Find device '\\Device\\Floppy0' in path '\\Device\\NotFound0\\a\\path'");
 
     replace_device_path(&path);
@@ -3238,11 +3365,14 @@ void test_replace_device_path_device_found(void **state) {
     syscheck.wdata.device[1] = strdup("\\Device\\Floppy0");
     syscheck.wdata.drive[1] = strdup("A:");
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6304): Find device '\\Device\\HarddiskVolume1' in path '\\Device\\Floppy0\\a\\path'");
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6304): Find device '\\Device\\Floppy0' in path '\\Device\\Floppy0\\a\\path'");
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6305): Replacing '\\Device\\Floppy0\\a\\path' to 'A:\\a\\path'");
 
     replace_device_path(&path);
@@ -3262,7 +3392,8 @@ void test_get_drive_names_access_denied_error(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__mwarn, formatted_msg, "GetVolumePathNamesForVolumeNameW (5)'Input/output error'");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "GetVolumePathNamesForVolumeNameW (5)'Input/output error'");
 
     get_drive_names(volume_name, device);
 }
@@ -3286,7 +3417,8 @@ void test_get_drive_names_more_data_error(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__mwarn, formatted_msg, "GetVolumePathNamesForVolumeNameW (5)'Input/output error'");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "GetVolumePathNamesForVolumeNameW (5)'Input/output error'");
 
     get_drive_names(volume_name, device);
 }
@@ -3302,9 +3434,12 @@ void test_get_drive_names_success(void **state) {
     will_return(wrap_GetVolumePathNamesForVolumeNameW, volume_paths);
     will_return(wrap_GetVolumePathNamesForVolumeNameW, 1);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6303): Device 'C' associated with the mounting point 'A'");
-    expect_string(__wrap__mdebug1, formatted_msg, "(6303): Device 'C' associated with the mounting point 'C'");
-    expect_string(__wrap__mdebug1, formatted_msg, "(6303): Device 'C' associated with the mounting point '\\Some\\path'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6303): Device 'C' associated with the mounting point 'A'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6303): Device 'C' associated with the mounting point 'C'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6303): Device 'C' associated with the mounting point '\\Some\\path'");
 
 
     get_drive_names(volume_name, device);
@@ -3317,7 +3452,8 @@ void test_get_volume_names_unable_to_find_first_volume(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__mwarn, formatted_msg, "FindFirstVolumeW failed (5)'Input/output error'");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "FindFirstVolumeW failed (5)'Input/output error'");
 
     expect_value(wrap_FindVolumeClose, hFindVolume, INVALID_HANDLE_VALUE);
     will_return(wrap_FindVolumeClose, 1);
@@ -3332,7 +3468,8 @@ void test_get_volume_names_bad_path(void **state) {
     will_return(wrap_FindFirstVolumeW, L"Not a valid volume");
     will_return(wrap_FindFirstVolumeW, (HANDLE)123456);
 
-    expect_string(__wrap__mwarn, formatted_msg, "Find Volume returned a bad path: Not a valid volume");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "Find Volume returned a bad path: Not a valid volume");
 
     expect_value(wrap_FindVolumeClose, hFindVolume, (HANDLE)123456);
     will_return(wrap_FindVolumeClose, 1);
@@ -3355,7 +3492,8 @@ void test_get_volume_names_no_dos_device(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__mwarn, formatted_msg, "QueryDosDeviceW failed (5)'Input/output error'");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "QueryDosDeviceW failed (5)'Input/output error'");
 
     expect_value(wrap_FindVolumeClose, hFindVolume, (HANDLE)123456);
     will_return(wrap_FindVolumeClose, 1);
@@ -3388,9 +3526,12 @@ void test_get_volume_names_error_on_next_volume(void **state) {
         will_return(wrap_GetVolumePathNamesForVolumeNameW, volume_paths);
         will_return(wrap_GetVolumePathNamesForVolumeNameW, 1);
 
-        expect_string(__wrap__mdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point 'A'");
-        expect_string(__wrap__mdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point 'C'");
-        expect_string(__wrap__mdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point '\\Some\\path'");
+        expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point 'A'");
+        expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point 'C'");
+        expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point '\\Some\\path'");
     }
 
     expect_value(wrap_FindNextVolumeW, hFindVolume, (HANDLE)123456);
@@ -3399,7 +3540,8 @@ void test_get_volume_names_error_on_next_volume(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__mwarn, formatted_msg, "FindNextVolumeW failed (5)'Input/output error'");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "FindNextVolumeW failed (5)'Input/output error'");
 
     expect_value(wrap_FindVolumeClose, hFindVolume, (HANDLE)123456);
     will_return(wrap_FindVolumeClose, 1);
@@ -3432,9 +3574,12 @@ void test_get_volume_names_no_more_files(void **state) {
         will_return(wrap_GetVolumePathNamesForVolumeNameW, volume_paths);
         will_return(wrap_GetVolumePathNamesForVolumeNameW, 1);
 
-        expect_string(__wrap__mdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point 'A'");
-        expect_string(__wrap__mdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point 'C'");
-        expect_string(__wrap__mdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point '\\Some\\path'");
+        expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point 'A'");
+        expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point 'C'");
+        expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point '\\Some\\path'");
     }
 
     expect_value(wrap_FindNextVolumeW, hFindVolume, (HANDLE)123456);
@@ -3470,7 +3615,8 @@ void test_whodata_hash_add_unable_to_add(void **state) {
     expect_memory(__wrap_OSHash_Add_ex, data, data, wcslen(data));
     will_return(__wrap_OSHash_Add_ex, 0);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6631): The event could not be added to the 'tag' hash table. Target: 'key'.");
 
     ret = whodata_hash_add((OSHash*)123456, "key", data, "tag");
@@ -3487,7 +3633,8 @@ void test_whodata_hash_add_duplicate_entry(void **state) {
     expect_memory(__wrap_OSHash_Add_ex, data, data, wcslen(data));
     will_return(__wrap_OSHash_Add_ex, 1);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6630): The event could not be added to the 'tag' hash table because it is duplicated. Target: 'key'.");
 
     ret = whodata_hash_add((OSHash*)123456, "key", data, "tag");
@@ -3517,7 +3664,8 @@ void test_restore_sacls_openprocesstoken_failed(void **state){
 
     will_return(wrap_GetLastError, (unsigned int) 500);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6648): OpenProcessToken() failed. Error '500'.");
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -3539,9 +3687,11 @@ void test_restore_sacls_set_privilege_failed(void **state){
     will_return(wrap_LookupPrivilegeValue, 0);
     will_return(wrap_LookupPrivilegeValue, 0);
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
-    expect_string(__wrap__merror, formatted_msg, "(6647): Could not find the 'SeSecurityPrivilege' privilege. Error: 5");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6647): Could not find the 'SeSecurityPrivilege' privilege. Error: 5");
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
-    expect_string(__wrap__merror, formatted_msg, "(6659): The privilege could not be activated. Error: '5'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6659): The privilege could not be activated. Error: '5'.");
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
     will_return(wrap_CloseHandle, 0);
@@ -3611,7 +3761,8 @@ void test_restore_sacls_securityNameInfo_failed(void **state){
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
     // GetNamedSecurity
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->path);
@@ -3620,7 +3771,8 @@ void test_restore_sacls_securityNameInfo_failed(void **state){
     will_return(wrap_GetNamedSecurityInfo, NULL);
     will_return(wrap_GetNamedSecurityInfo, NULL);
     will_return(wrap_GetNamedSecurityInfo, ERROR_FILE_NOT_FOUND);
-    expect_string(__wrap__merror, formatted_msg, "(6650): GetNamedSecurityInfo() failed. Error '2'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6650): GetNamedSecurityInfo() failed. Error '2'");
 
     /* Inside set_privilege */
     {
@@ -3632,7 +3784,8 @@ void test_restore_sacls_securityNameInfo_failed(void **state){
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -3664,7 +3817,8 @@ void test_restore_sacls_deleteAce_failed(void **state){
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
     // GetNamedSecurity
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->path);
@@ -3679,7 +3833,8 @@ void test_restore_sacls_deleteAce_failed(void **state){
     expect_value(wrap_DeleteAce, dwAceIndex, 0);
     will_return(wrap_DeleteAce, 0);
     will_return(wrap_GetLastError, 500);
-    expect_string(__wrap__merror, formatted_msg, "(6646): DeleteAce() failed restoring the SACLs. Error '500'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6646): DeleteAce() failed restoring the SACLs. Error '500'");
     /* Inside set_privilege */
     {
         expect_string(wrap_LookupPrivilegeValue, lpName, "SeSecurityPrivilege");
@@ -3690,7 +3845,8 @@ void test_restore_sacls_deleteAce_failed(void **state){
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -3722,7 +3878,8 @@ void test_restore_sacls_SetNamedSecurityInfo_failed(void **state){
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
     // GetNamedSecurity
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->path);
@@ -3745,7 +3902,8 @@ void test_restore_sacls_SetNamedSecurityInfo_failed(void **state){
     expect_value(wrap_SetNamedSecurityInfo, pDacl, NULL);
     expect_value(wrap_SetNamedSecurityInfo, pSacl, &acl);
     will_return(wrap_SetNamedSecurityInfo, ERROR_PATH_NOT_FOUND);
-    expect_string(__wrap__merror, formatted_msg, "(6658): SetNamedSecurityInfo() failed. Error: '3'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6658): SetNamedSecurityInfo() failed. Error: '3'.");
 
     /* Inside set_privilege */
     {
@@ -3757,7 +3915,8 @@ void test_restore_sacls_SetNamedSecurityInfo_failed(void **state){
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -3789,7 +3948,8 @@ void test_restore_sacls_success(void **state){
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
     // GetNamedSecurity
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->path);
@@ -3815,7 +3975,8 @@ void test_restore_sacls_success(void **state){
 
     char debug_msg[OS_MAXSTR];
     snprintf(debug_msg, OS_MAXSTR, FIM_SACL_RESTORED, ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->path);
-    expect_string(__wrap__mdebug1, formatted_msg, debug_msg);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, debug_msg);
 
     /* Inside set_privilege */
     {
@@ -3827,7 +3988,8 @@ void test_restore_sacls_success(void **state){
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -3841,7 +4003,8 @@ void test_restore_sacls_success(void **state){
 void test_restore_audit_policies_backup_not_found(void **state) {
     expect_string(__wrap_IsFile, file, "tmp\\backup-policies");
     will_return(__wrap_IsFile, -1);
-    expect_string(__wrap__merror, formatted_msg, "(6622): There is no backup of audit policies. Policies will not be restored.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6622): There is no backup of audit policies. Policies will not be restored.");
 
     int ret = restore_audit_policies();
     assert_int_equal(ret, 1);
@@ -3858,7 +4021,8 @@ void test_restore_audit_policies_command_failed(void **state) {
     will_return(__wrap_wm_exec, -1);
     will_return(__wrap_wm_exec, -1);
 
-    expect_string(__wrap__merror, formatted_msg, "(6635): Auditpol backup error: 'failed to execute command'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6635): Auditpol backup error: 'failed to execute command'.");
 
     int ret = restore_audit_policies();
     assert_int_equal(ret, 1);
@@ -3875,7 +4039,8 @@ void test_restore_audit_policies_command2_failed(void **state) {
     will_return(__wrap_wm_exec, -1);
     will_return(__wrap_wm_exec, 1);
 
-    expect_string(__wrap__merror, formatted_msg, "(6635): Auditpol backup error: 'time overtaken while running the command'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6635): Auditpol backup error: 'time overtaken while running the command'.");
 
     int ret = restore_audit_policies();
     assert_int_equal(ret, 1);
@@ -3892,7 +4057,8 @@ void test_restore_audit_policies_command3_failed(void **state) {
     will_return(__wrap_wm_exec, -1);
     will_return(__wrap_wm_exec, 0);
 
-    expect_string(__wrap__merror, formatted_msg, "(6635): Auditpol backup error: 'command returned failure'. Output: 'OUTPUT COMMAND'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6635): Auditpol backup error: 'command returned failure'. Output: 'OUTPUT COMMAND'.");
 
     int ret = restore_audit_policies();
     assert_int_equal(ret, 1);
@@ -3936,7 +4102,8 @@ void test_audit_restore(void **state) {
             expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
             will_return(wrap_AdjustTokenPrivileges, 1);
 
-            expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+            expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+            expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
         }
         // GetNamedSecurity
         expect_string(wrap_GetNamedSecurityInfo, pObjectName, ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->path);
@@ -3962,7 +4129,8 @@ void test_audit_restore(void **state) {
 
         char debug_msg[OS_MAXSTR];
         snprintf(debug_msg, OS_MAXSTR, FIM_SACL_RESTORED, ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->path);
-        expect_string(__wrap__mdebug1, formatted_msg, debug_msg);
+        expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug1, formatted_msg, debug_msg);
 
         /* Inside set_privilege */
         {
@@ -3974,7 +4142,8 @@ void test_audit_restore(void **state) {
             expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
             will_return(wrap_AdjustTokenPrivileges, 1);
 
-            expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+            expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+            expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
         }
 
         expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -4028,7 +4197,8 @@ void test_whodata_event_render_fail_to_render_event(void **state) {
     will_return(wrap_EvtRender, 0);
 
     will_return(wrap_GetLastError, 500);
-    expect_string(__wrap__mwarn, formatted_msg, "(6933): Error rendering the event. Error 500.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6933): Error rendering the event. Error 500.");
 
     result = whodata_event_render(event);
 
@@ -4062,7 +4232,8 @@ void test_whodata_event_render_wrong_property_count(void **state) {
     will_return(wrap_EvtRender, 0); // PropertyCount
     will_return(wrap_EvtRender, 1);
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6934): Invalid number of rendered parameters.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6934): Invalid number of rendered parameters.");
 
     result = whodata_event_render(event);
     assert_null(result);
@@ -4137,7 +4308,8 @@ void test_whodata_get_event_id_wrong_event_type(void **state) {
     short event_id;
     int result;
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'event_id'.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'event_id'.");
 
     result = whodata_get_event_id(raw_data, &event_id);
 
@@ -4219,7 +4391,8 @@ void test_whodata_get_handle_id_32bit_handle_wrong_type(void **state) {
     unsigned __int64 handle_id;
     int result;
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'handle_id'.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'handle_id'.");
 
     result = whodata_get_handle_id(raw_data, &handle_id);
 
@@ -4301,7 +4474,8 @@ void test_whodata_get_access_mask_wrong_type(void **state) {
     unsigned long mask;
     int result;
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'mask'.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'mask'.");
 
     result = whodata_get_access_mask(raw_data, &mask);
 
@@ -4363,7 +4537,8 @@ void test_whodata_event_parse_wrong_path_type(void **state) {
     whodata_evt event_data;
     int result;
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'path'.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'path'.");
 
     result = whodata_event_parse(raw_data, &event_data);
 
@@ -4392,7 +4567,8 @@ void test_whodata_event_parse_fail_to_get_path(void **state) {
 
         will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-        expect_string(__wrap__mdebug1, formatted_msg, "(6306): The path could not be processed in Whodata mode. Error: 5");
+        expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug1, formatted_msg, "(6306): The path could not be processed in Whodata mode. Error: 5");
     }
 
     result = whodata_event_parse(raw_data, &event_data);
@@ -4434,7 +4610,8 @@ void test_whodata_event_parse_filter_path(void **state) {
 
     // Inside whodata_path_filter
     {
-        expect_string(__wrap__mdebug2, formatted_msg,
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg,
             "(6289): File 'c:\\$recycle.bin\\test.file' is in the recycle bin. It will be discarded.");
     }
 
@@ -4469,10 +4646,14 @@ void test_whodata_event_parse_wrong_types(void **state) {
         will_return(wrap_WideCharToMultiByte, strlen(STR_TEST_PATH));
     }
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'user_name'.");
-    expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'process_name'.");
-    expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'process_id'.");
-    expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'user_id'.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'user_name'.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'process_name'.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'process_id'.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'user_id'.");
 
     result = whodata_event_parse(raw_data, &event_data);
 
@@ -4519,7 +4700,8 @@ void test_whodata_event_parse_32bit_process_id(void **state) {
     will_return(wrap_ConvertSidToStringSid, NULL);
     will_return(wrap_ConvertSidToStringSid, 0);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6246): Invalid identifier for user 'user_name'");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6246): Invalid identifier for user 'user_name'");
 
     result = whodata_event_parse(raw_data, &event_data);
 
@@ -4557,7 +4739,8 @@ void test_whodata_event_parse_32bit_hex_process_id(void **state) {
         will_return(wrap_WideCharToMultiByte, strlen(STR_TEST_PATH));
     }
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'user_name'.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'user_name'.");
 
     expect_memory(__wrap_convert_windows_string, string, L"process_name", wcslen(L"process_name"));
     will_return(__wrap_convert_windows_string, strdup("process_name"));
@@ -4565,7 +4748,8 @@ void test_whodata_event_parse_32bit_hex_process_id(void **state) {
     will_return(wrap_ConvertSidToStringSid, NULL);
     will_return(wrap_ConvertSidToStringSid, 0);
 
-    expect_string(__wrap__mdebug1, formatted_msg, FIM_WHODATA_INVALID_UNKNOWN_UID);
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, FIM_WHODATA_INVALID_UNKNOWN_UID);
 
     result = whodata_event_parse(raw_data, &event_data);
 
@@ -4652,7 +4836,8 @@ void test_whodata_callback_fail_to_render_event(void **state) {
         will_return(wrap_EvtRender, 0);
 
         will_return(wrap_GetLastError, 500);
-        expect_string(__wrap__mwarn, formatted_msg, "(6933): Error rendering the event. Error 500.");
+        expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtwarn, formatted_msg, "(6933): Error rendering the event. Error 500.");
     }
 
     result = whodata_callback(action, NULL, event);
@@ -4678,7 +4863,8 @@ void test_whodata_callback_fail_to_get_event_id(void **state) {
 
     // Inside whodata_get_event_id
     {
-        expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'event_id'.");
+        expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'event_id'.");
     }
 
     result = whodata_callback(action, NULL, event);
@@ -4704,7 +4890,8 @@ void test_whodata_callback_fail_to_get_handle_id(void **state) {
 
     // Inside whodata_get_handle_id
     {
-        expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'handle_id'.");
+        expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'handle_id'.");
     }
 
     result = whodata_callback(action, NULL, event);
@@ -4730,7 +4917,8 @@ void test_whodata_callback_4656_fail_to_parse_event(void **state) {
 
     // Inside whodata_event_parse
     {
-        expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'path'.");
+        expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'path'.");
     }
 
     result = whodata_callback(action, NULL, event);
@@ -4780,7 +4968,8 @@ void test_whodata_callback_4656_fail_to_get_access_mask(void **state) {
 
     // Inside whodata_get_access_mask
     {
-        expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'mask'.");
+        expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'mask'.");
     }
 
     result = whodata_callback(action, NULL, event);
@@ -4835,8 +5024,10 @@ void test_whodata_callback_4656_non_monitored_directory(void **state) {
         will_return(wrap_ConvertSidToStringSid, 6);
     }
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6319): No configuration found for (file):'c:\\non\\monitored'");
-    expect_string(__wrap__mdebug2, formatted_msg, "(6239): 'c:\\non\\monitored' is discarded because its monitoring is not activated.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6319): No configuration found for (file):'c:\\non\\monitored'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6239): 'c:\\non\\monitored' is discarded because its monitoring is not activated.");
 
     result = whodata_callback(action, NULL, event);
     assert_int_equal(result, 1);
@@ -4892,7 +5083,8 @@ void test_whodata_callback_4656_non_whodata_directory(void **state) {
         will_return(wrap_ConvertSidToStringSid, 6);
     }
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6240): The monitoring of 'c:\\windows\\a\\path' in whodata mode has been canceled. Added to the ignore list.");
 
     result = whodata_callback(action, NULL, event);
@@ -4948,7 +5140,8 @@ void test_whodata_callback_4656_path_above_recursion_level(void ** state) {
         will_return(wrap_ConvertSidToStringSid, 6);
     }
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6217): Maximum level of recursion reached. Depth:1 recursion_level:0 'c:\\windows\\a\\path'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6217): Maximum level of recursion reached. Depth:1 recursion_level:0 'c:\\windows\\a\\path'");
 
     result = whodata_callback(action, NULL, event);
     assert_int_equal(result, 1);
@@ -5004,7 +5197,8 @@ void test_whodata_callback_4656_fail_to_add_event_to_hashmap(void ** state) {
     expect_string(__wrap_check_path_type, dir, STR_TEST_PATH);
     will_return(__wrap_check_path_type, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6298): Removed folder event received for 'c:\\windows\\a\\path'");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6298): Removed folder event received for 'c:\\windows\\a\\path'");
 
     // Inside whodata_hash_add
     {
@@ -5012,7 +5206,8 @@ void test_whodata_callback_4656_fail_to_add_event_to_hashmap(void ** state) {
         expect_string(__wrap_OSHash_Add_ex, key, "1193046");
         will_return(__wrap_OSHash_Add_ex, 0);
 
-        expect_string(__wrap__merror, formatted_msg,
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg,
             "(6631): The event could not be added to the 'whodata' hash table. Target: '1193046'.");
     }
 
@@ -5076,17 +5271,20 @@ void test_whodata_callback_4656_duplicate_handle_id_fail_to_delete(void **state)
         expect_string(__wrap_OSHash_Add_ex, key, "1193046");
         will_return(__wrap_OSHash_Add_ex, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg,
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg,
             "(6630): The event could not be added to the 'whodata' hash table because it is duplicated. Target: '1193046'.");
     }
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6229): The handler ('1193046') will be updated.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6229): The handler ('1193046') will be updated.");
 
     expect_value(__wrap_OSHash_Delete_ex, self, syscheck.wdata.fd);
     expect_string(__wrap_OSHash_Delete_ex, key, "1193046");
     will_return(__wrap_OSHash_Delete_ex, (whodata_evt *)NULL);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6626): The handler '1193046' could not be removed from the whodata hash table.");
 
     result = whodata_callback(action, NULL, event);
@@ -5155,11 +5353,13 @@ void test_whodata_callback_4656_duplicate_handle_id_fail_to_readd(void **state) 
         expect_string(__wrap_OSHash_Add_ex, key, "1193046");
         will_return(__wrap_OSHash_Add_ex, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg,
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg,
             "(6630): The event could not be added to the 'whodata' hash table because it is duplicated. Target: '1193046'.");
     }
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6229): The handler ('1193046') will be updated.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6229): The handler ('1193046') will be updated.");
 
     expect_value(__wrap_OSHash_Delete_ex, self, syscheck.wdata.fd);
     expect_string(__wrap_OSHash_Delete_ex, key, "1193046");
@@ -5171,7 +5371,8 @@ void test_whodata_callback_4656_duplicate_handle_id_fail_to_readd(void **state) 
         expect_string(__wrap_OSHash_Add_ex, key, "1193046");
         will_return(__wrap_OSHash_Add_ex, 0);
 
-        expect_string(__wrap__merror, formatted_msg,
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg,
             "(6631): The event could not be added to the 'whodata' hash table. Target: '1193046'.");
     }
 
@@ -5262,7 +5463,8 @@ void test_whodata_callback_4663_fail_to_get_mask(void **state) {
     expect_string(__wrap_OSHash_Get, key, "1193046");
     will_return(__wrap_OSHash_Get, w_evt);
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'mask'.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'mask'.");
 
     result = whodata_callback(action, NULL, event);
     assert_int_equal(result, 1);
@@ -5413,9 +5615,11 @@ void test_whodata_callback_4663_non_monitored_directory(void **state) {
     expect_string(__wrap_OSHash_Get, key, "1193046");
     will_return(__wrap_OSHash_Get, w_evt);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6319): No configuration found for (file):'c:\\a\\path'");
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6243): The 'c:\\a\\path' directory has been discarded because it is not being monitored in whodata mode.");
 
     result = whodata_callback(action, NULL, event);
@@ -5468,7 +5672,8 @@ void test_whodata_callback_4663_fail_to_add_new_directory(void **state) {
         expect_string(__wrap_OSHash_Add_ex, key, "c:\\windows");
         will_return(__wrap_OSHash_Add_ex, 0);
 
-        expect_string(__wrap__merror, formatted_msg,
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg,
             "(6631): The event could not be added to the 'directories' hash table. Target: 'c:\\windows'.");
     }
 
@@ -5523,7 +5728,8 @@ void test_whodata_callback_4663_new_files_added(void **state) {
         will_return(__wrap_OSHash_Add_ex, 2);
     }
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6244): New files have been detected in the 'c:\\windows' directory and will be scanned.");
 
     result = whodata_callback(action, NULL, event);
@@ -5560,7 +5766,8 @@ void test_whodata_callback_4663_wrong_time_type(void **state) {
     expect_string(__wrap_OSHash_Get, key, "1193046");
     will_return(__wrap_OSHash_Get, w_evt);
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'event_time'.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6932): Invalid parameter type (0) for 'event_time'.");
 
     result = whodata_callback(action, NULL, event);
     assert_int_equal(result, 1);
@@ -5610,7 +5817,8 @@ void test_whodata_callback_4663_abort_scan(void **state) {
     expect_string(__wrap_OSHash_Get, key, "c:\\windows");
     will_return(__wrap_OSHash_Get, &w_dir);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6241): The 'c:\\windows' directory has been scanned. It does not need to be scanned again.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6241): The 'c:\\windows' directory has been scanned. It does not need to be scanned again.");
 
     result = whodata_callback(action, NULL, event);
     assert_int_equal(result, 0);
@@ -5659,7 +5867,8 @@ void test_whodata_callback_4663_directory_will_be_scanned(void **state) {
     expect_string(__wrap_OSHash_Get, key, "c:\\windows");
     will_return(__wrap_OSHash_Get, &w_dir);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6244): New files have been detected in the 'c:\\windows' directory and will be scanned.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6244): New files have been detected in the 'c:\\windows' directory and will be scanned.");
 
     result = whodata_callback(action, NULL, event);
     assert_int_equal(result, 0);
@@ -5856,7 +6065,8 @@ void test_whodata_callback_4658_directory_no_new_files(void **state) {
     expect_string(__wrap_OSHash_Delete_ex, key, "1193046");
     will_return(__wrap_OSHash_Delete_ex, w_evt);
 
-    expect_string(__wrap__mdebug2, formatted_msg,
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug2, formatted_msg,
         "(6245): The 'c:\\a\\path' directory has not been scanned because no new files have been detected. Mask: '0'");
 
     result = whodata_callback(action, NULL, event);
@@ -5891,7 +6101,8 @@ void test_whodata_callback_4658_scan_aborted(void **state) {
     expect_string(__wrap_OSHash_Delete_ex, key, "1193046");
     will_return(__wrap_OSHash_Delete_ex, w_evt);
 
-    expect_string(__wrap__mdebug1, formatted_msg,
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg,
         "(6232): Scanning of the 'c:\\a\\path' directory is aborted because something has gone wrong.");
 
     result = whodata_callback(action, NULL, event);
@@ -5915,7 +6126,8 @@ void test_whodata_callback_unexpected_event_id(void **state) {
 
     successful_whodata_event_render(event, raw_data);
 
-    expect_string(__wrap__merror, formatted_msg, FIM_ERROR_WHODATA_EVENTID);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, FIM_ERROR_WHODATA_EVENTID);
 
     result = whodata_callback(action, NULL, event);
     assert_int_equal(result, 1);
@@ -5932,7 +6144,8 @@ void test_check_object_sacl_open_process_error(void **state) {
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg, "(6648): OpenProcessToken() failed. Error '5'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6648): OpenProcessToken() failed. Error '5'.");
 
     ret = check_object_sacl("C:\\a\\path", 0);
 
@@ -5955,13 +6168,15 @@ void test_check_object_sacl_unable_to_set_privilege(void **state) {
 
         will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-        expect_string(__wrap__merror, formatted_msg,
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg,
             "(6647): Could not find the 'SeSecurityPrivilege' privilege. Error: 5");
     }
 
     will_return(wrap_GetLastError, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg, "(6659): The privilege could not be activated. Error: '5'.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6659): The privilege could not be activated. Error: '5'.");
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
     will_return(wrap_CloseHandle, 0);
@@ -5988,7 +6203,8 @@ void test_check_object_sacl_unable_to_retrieve_security_info(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -5998,7 +6214,8 @@ void test_check_object_sacl_unable_to_retrieve_security_info(void **state) {
     will_return(wrap_GetNamedSecurityInfo, NULL);
     will_return(wrap_GetNamedSecurityInfo, ERROR_FILE_NOT_FOUND);
 
-    expect_string(__wrap__merror, formatted_msg, "(6650): GetNamedSecurityInfo() failed. Error '2'");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6650): GetNamedSecurityInfo() failed. Error '2'");
 
     // Inside set_privilege
     {
@@ -6010,7 +6227,8 @@ void test_check_object_sacl_unable_to_retrieve_security_info(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -6040,7 +6258,8 @@ void test_check_object_sacl_invalid_sacl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -6063,7 +6282,8 @@ void test_check_object_sacl_invalid_sacl(void **state) {
 
         will_return(wrap_GetLastError, (unsigned int) 700);
 
-        expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
     }
 
     // Inside set_privilege
@@ -6076,7 +6296,8 @@ void test_check_object_sacl_invalid_sacl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -6106,7 +6327,8 @@ void test_check_object_sacl_valid_sacl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
     }
 
     expect_string(wrap_GetNamedSecurityInfo, pObjectName, "C:\\a\\path");
@@ -6148,7 +6370,8 @@ void test_check_object_sacl_valid_sacl(void **state) {
         expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
         will_return(wrap_AdjustTokenPrivileges, 1);
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
     }
 
     expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -6173,7 +6396,8 @@ void test_run_whodata_scan_invalid_arch(void **state) {
     will_return(wrap_RegOpenKeyEx, NULL);
     will_return(wrap_RegOpenKeyEx, ERROR_ACCESS_DENIED);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(1758): Unable to open registry key: 'System\\CurrentControlSet\\Control\\Session Manager\\Environment'.");
 }
     ret = run_whodata_scan();
@@ -6211,10 +6435,12 @@ void test_run_whodata_scan_no_audit_policies(void **state) {
     expect_string(__wrap_remove, filename, "tmp\\backup-policies");
     will_return(__wrap_remove, 1);
 
-    expect_any(__wrap__merror, formatted_msg);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_any(__wrap__mterror, formatted_msg);
 }
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
          "(6916): Local audit policies could not be configured.");
 
     ret = run_whodata_scan();
@@ -6258,11 +6484,13 @@ void test_run_whodata_scan_no_auto_audit_policies(void **state) {
     will_return(__wrap_wm_exec, 1);
     will_return(__wrap_wm_exec, 0);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6915): Audit policies could not be auto-configured due to the Windows version. Check if they are correct for whodata mode.");
 }
 
-    expect_string(__wrap__merror, formatted_msg, "(6916): Local audit policies could not be configured.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6916): Local audit policies could not be configured.");
 
     ret = run_whodata_scan();
     assert_int_equal(ret, 1);
@@ -6367,7 +6595,8 @@ void test_run_whodata_scan_error_event_channel(void **state) {
 
     will_return(wrap_EvtSubscribe, NULL);
 
-    expect_string(__wrap__merror, formatted_msg, "(6621): Event Channel subscription could not be made. Whodata scan is disabled.");
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, "(6621): Event Channel subscription could not be made. Whodata scan is disabled.");
 
     ret = run_whodata_scan();
     assert_int_equal(ret, 1);
@@ -6472,7 +6701,8 @@ void test_run_whodata_scan_success(void **state) {
 
     will_return(wrap_EvtSubscribe, 1);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6019): File integrity monitoring real-time Whodata engine started.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6019): File integrity monitoring real-time Whodata engine started.");
 
     ret = run_whodata_scan();
     assert_int_equal(ret, 0);
@@ -6501,7 +6731,8 @@ void test_set_policies_unable_to_remove_backup_file(void **state) {
     will_return(__wrap_remove, -1);
     errno = EACCES;
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6660): 'tmp\\backup-policies' could not be removed: 'Permission denied' (13).");
 
     ret = set_policies();
@@ -6521,7 +6752,8 @@ void test_set_policies_fail_getting_policies(void **state) {
     will_return(__wrap_wm_exec, 1);
     will_return(__wrap_wm_exec, 0);
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
     "(6915): Audit policies could not be auto-configured due to the Windows version. Check if they are correct for whodata mode.");
 
     ret = set_policies();
@@ -6546,7 +6778,8 @@ void test_set_policies_unable_to_open_backup_file(void **state) {
     will_return(__wrap_fopen, NULL);
     errno = EACCES;
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6661): 'tmp\\backup-policies' could not be opened: 'Permission denied' (13).");
 
     ret = set_policies();
@@ -6575,7 +6808,8 @@ void test_set_policies_unable_to_open_new_file(void **state) {
     will_return(__wrap_fopen, NULL);
     errno = EACCES;
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6661): 'tmp\\new-policies' could not be opened: 'Permission denied' (13).");
 
     expect_value(__wrap_fclose, _File, (FILE*)1234);
@@ -6632,7 +6866,8 @@ void test_set_policies_unable_to_restore_policies(void **state) {
     expect_value(__wrap_wm_exec, add_path, NULL);
     will_return(__wrap_wm_exec, 1);
     will_return(__wrap_wm_exec, 0);
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6915): Audit policies could not be auto-configured due to the Windows version. Check if they are correct for whodata mode.");
 
     expect_value(__wrap_fclose, _File, (FILE*)1234);
@@ -6707,7 +6942,9 @@ void test_state_checker_no_files_to_check(void **state) {
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
     OSList_CleanNodes(syscheck.directories);
-    expect_string(__wrap__mdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
+
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
 
     will_return(__wrap_FOREVER, 1);
     will_return(__wrap_FOREVER, 0);
@@ -6732,7 +6969,8 @@ void test_state_checker_file_not_whodata(void **state) {
     // Leverage Free_Syscheck not free the wdata struct
     ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->dirs_status.status &= ~WD_CHECK_WHODATA;
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
 
     will_return(__wrap_FOREVER, 1);
     will_return(__wrap_FOREVER, 0);
@@ -6760,7 +6998,8 @@ void test_state_checker_file_does_not_exist(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
 
     will_return(__wrap_FOREVER, 1);
     will_return(__wrap_FOREVER, 0);
@@ -6770,7 +7009,8 @@ void test_state_checker_file_does_not_exist(void **state) {
     expect_string(__wrap_check_path_type, dir, "c:\\a\\path");
     will_return(__wrap_check_path_type, 0);
 
-    expect_string(__wrap__mdebug1, formatted_msg,
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg,
         "(6022): 'c:\\a\\path' has been deleted. It will not be monitored in real-time Whodata mode.");
 
     will_return(wrap_GetSystemTime, &st);
@@ -6797,7 +7037,8 @@ void test_state_checker_file_with_invalid_sacl(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
 
     will_return(__wrap_FOREVER, 1);
     will_return(__wrap_FOREVER, 0);
@@ -6824,7 +7065,8 @@ void test_state_checker_file_with_invalid_sacl(void **state) {
             expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
             will_return(wrap_AdjustTokenPrivileges, 1);
 
-            expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+            expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+            expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
         }
 
         expect_string(wrap_GetNamedSecurityInfo, pObjectName, "c:\\a\\path");
@@ -6846,7 +7088,8 @@ void test_state_checker_file_with_invalid_sacl(void **state) {
 
             will_return(wrap_GetLastError, (unsigned int) 700);
 
-            expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
+            expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+            expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
         }
 
         // Inside set_privilege
@@ -6859,14 +7102,16 @@ void test_state_checker_file_with_invalid_sacl(void **state) {
             expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
             will_return(wrap_AdjustTokenPrivileges, 1);
 
-            expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+            expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+            expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
         }
 
         expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
         will_return(wrap_CloseHandle, 0);
     }
 
-    expect_string(__wrap__minfo, formatted_msg,
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg,
         "(6021): The SACL of 'c:\\a\\path' has been modified and it is not valid for the real-time Whodata mode. Whodata will not be available for this file.");
 
     // Inside notify_SACL_change
@@ -6905,7 +7150,8 @@ void test_state_checker_file_with_valid_sacl(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
 
     will_return(__wrap_FOREVER, 1);
     will_return(__wrap_FOREVER, 0);
@@ -6932,7 +7178,8 @@ void test_state_checker_file_with_valid_sacl(void **state) {
             expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
             will_return(wrap_AdjustTokenPrivileges, 1);
 
-            expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+            expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+            expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
         }
 
         expect_string(wrap_GetNamedSecurityInfo, pObjectName, "c:\\a\\path");
@@ -6974,7 +7221,8 @@ void test_state_checker_file_with_valid_sacl(void **state) {
             expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
             will_return(wrap_AdjustTokenPrivileges, 1);
 
-            expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+            expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+            expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
         }
 
         expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -7005,7 +7253,8 @@ void test_state_checker_dir_readded_error(void **state) {
 
     ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->dirs_status.status &= ~WD_STATUS_EXISTS;
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
 
     will_return(__wrap_FOREVER, 1);
     will_return(__wrap_FOREVER, 0);
@@ -7015,13 +7264,15 @@ void test_state_checker_dir_readded_error(void **state) {
     expect_string(__wrap_check_path_type, dir, "c:\\a\\path");
     will_return(__wrap_check_path_type, 2);
 
-    expect_string(__wrap__minfo, formatted_msg,
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg,
         "(6020): 'c:\\a\\path' has been re-added. It will be monitored in real-time Whodata mode.");
 
     // Inside set_winsacl
     {
         snprintf(debug_msg, OS_MAXSTR, FIM_SACL_CONFIGURE, ((directory_t *)OSList_GetDataFromIndex(syscheck.directories, 0))->path);
-        expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, debug_msg);
 
         will_return(wrap_GetCurrentProcess, (HANDLE)4321);
         expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -7029,10 +7280,12 @@ void test_state_checker_dir_readded_error(void **state) {
         will_return(wrap_OpenProcessToken, 0);
 
         will_return(wrap_GetLastError, (unsigned int) 500);
-        expect_string(__wrap__merror, formatted_msg, "(6648): OpenProcessToken() failed. Error '500'.");
+        expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mterror, formatted_msg, "(6648): OpenProcessToken() failed. Error '500'.");
     }
 
-    expect_string(__wrap__merror, formatted_msg,
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg,
         "(6619): Unable to add directory to whodata real time monitoring: 'c:\\a\\path'. It will be monitored in Realtime");
 
     ret = state_checker(input);
@@ -7067,7 +7320,8 @@ void test_state_checker_dir_readded_succesful(void **state) {
     st.wMonth = 3;
     st.wDay = 3;
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
 
     will_return(__wrap_FOREVER, 1);
     will_return(__wrap_FOREVER, 0);
@@ -7077,14 +7331,16 @@ void test_state_checker_dir_readded_succesful(void **state) {
     expect_string(__wrap_check_path_type, dir, "c:\\a\\path");
     will_return(__wrap_check_path_type, 2);
 
-    expect_string(__wrap__minfo, formatted_msg,
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg,
         "(6020): 'c:\\a\\path' has been re-added. It will be monitored in real-time Whodata mode.");
 
     // Inside set_winsacl
     {
         ev_sid_size = 1;
 
-        expect_string(__wrap__mdebug2, formatted_msg, "(6266): The SACL of 'c:\\a\\path' will be configured.");
+        expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug2, formatted_msg, "(6266): The SACL of 'c:\\a\\path' will be configured.");
 
         will_return(wrap_GetCurrentProcess, (HANDLE)4321);
         expect_value(wrap_OpenProcessToken, DesiredAccess, TOKEN_ADJUST_PRIVILEGES);
@@ -7101,7 +7357,8 @@ void test_state_checker_dir_readded_succesful(void **state) {
             expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
             will_return(wrap_AdjustTokenPrivileges, 1);
 
-            expect_string(__wrap__mdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
+            expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+            expect_string(__wrap__mtdebug2, formatted_msg, "(6268): The 'SeSecurityPrivilege' privilege has been added.");
         }
 
         // GetNamedSecurity
@@ -7123,10 +7380,12 @@ void test_state_checker_dir_readded_succesful(void **state) {
 
             will_return(wrap_GetLastError, (unsigned int) 700);
 
-            expect_string(__wrap__merror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
+            expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+            expect_string(__wrap__mterror, formatted_msg, "(6633): Could not extract the ACE information. Error: '700'.");
         }
 
-        expect_string(__wrap__mdebug1, formatted_msg, "(6263): Setting up SACL for 'c:\\a\\path'");
+        expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+        expect_string(__wrap__mtdebug1, formatted_msg, "(6263): Setting up SACL for 'c:\\a\\path'");
 
         will_return(wrap_GetAclInformation, &old_sacl_info);
         will_return(wrap_GetAclInformation, 1);
@@ -7172,7 +7431,8 @@ void test_state_checker_dir_readded_succesful(void **state) {
             expect_value(wrap_AdjustTokenPrivileges, DisableAllPrivileges, 0);
             will_return(wrap_AdjustTokenPrivileges, 1);
 
-            expect_string(__wrap__mdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
+            expect_string(__wrap__mtdebug2, tag, SYSCHECK_LOGTAG);
+            expect_string(__wrap__mtdebug2, formatted_msg, "(6269): The 'SeSecurityPrivilege' privilege has been removed.");
         }
 
         expect_value(wrap_CloseHandle, hObject, (HANDLE)123456);
@@ -7196,7 +7456,8 @@ void test_state_checker_dirs_cleanup_no_nodes(void ** state) {
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
 
     will_return(__wrap_FOREVER, 1);
     will_return(__wrap_FOREVER, 0);
@@ -7217,7 +7478,8 @@ void test_state_checker_dirs_cleanup_single_non_stale_node(void ** state) {
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
 
     will_return(__wrap_FOREVER, 1);
     will_return(__wrap_FOREVER, 0);
@@ -7249,7 +7511,8 @@ void test_state_checker_dirs_cleanup_single_stale_node(void ** state) {
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
 
     will_return(__wrap_FOREVER, 1);
     will_return(__wrap_FOREVER, 0);
@@ -7280,7 +7543,8 @@ void test_state_checker_dirs_cleanup_multiple_nodes_none_stale(void ** state) {
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
 
     will_return(__wrap_FOREVER, 1);
     will_return(__wrap_FOREVER, 0);
@@ -7322,7 +7586,8 @@ void test_state_checker_dirs_cleanup_multiple_nodes_some_stale(void ** state) {
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
 
     will_return(__wrap_FOREVER, 1);
     will_return(__wrap_FOREVER, 0);
@@ -7368,7 +7633,8 @@ void test_state_checker_dirs_cleanup_multiple_nodes_all_stale(void ** state) {
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
-    expect_string(__wrap__mdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
+    expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "(6233): Checking thread set to '300' seconds.");
 
     will_return(__wrap_FOREVER, 1);
     will_return(__wrap_FOREVER, 0);
@@ -7437,7 +7703,8 @@ void test_whodata_audit_start_success(void **state) {
     expect_function_call(__wrap_OSHash_SetFreeDataPointer);
     will_return(__wrap_OSHash_SetFreeDataPointer, 0);
 
-    expect_string(__wrap__minfo, formatted_msg, FIM_WHODATA_VOLUMES);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, FIM_WHODATA_VOLUMES);
 
     // Inside get_volume_names
     {
@@ -7459,9 +7726,12 @@ void test_whodata_audit_start_success(void **state) {
             will_return(wrap_GetVolumePathNamesForVolumeNameW, volume_paths);
             will_return(wrap_GetVolumePathNamesForVolumeNameW, 1);
 
-            expect_string(__wrap__mdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point 'A'");
-            expect_string(__wrap__mdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point 'C'");
-            expect_string(__wrap__mdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point '\\Some\\path'");
+            expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+            expect_string(__wrap__mtdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point 'A'");
+            expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+            expect_string(__wrap__mtdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point 'C'");
+            expect_string(__wrap__mtdebug1, tag, SYSCHECK_LOGTAG);
+            expect_string(__wrap__mtdebug1, formatted_msg, "(6303): Device 'C\\' associated with the mounting point '\\Some\\path'");
         }
 
         expect_value(wrap_FindNextVolumeW, hFindVolume, (HANDLE)123456);

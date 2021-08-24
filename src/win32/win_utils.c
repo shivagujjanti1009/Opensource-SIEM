@@ -25,18 +25,6 @@ void *sysinfo_module = NULL;
 sysinfo_networks_func sysinfo_network_ptr = NULL;
 sysinfo_free_result_func sysinfo_free_result_ptr = NULL;
 
-/** Prototypes **/
-int Start_win32_Syscheck();
-
-/* syscheck main thread */
-void *skthread()
-{
-
-    Start_win32_Syscheck();
-
-    return (NULL);
-}
-
 void stop_wmodules()
 {
     wmodule * cur_module;
@@ -124,16 +112,6 @@ int local_start()
         rc++;
     }
 
-    /* Read logcollector config file */
-    mdebug1("Reading logcollector configuration.");
-
-    /* Init message queue */
-    w_msg_hash_queues_init();
-
-    if (LogCollectorConfig(cfg) < 0) {
-        merror_exit(CONFIG_ERROR, cfg);
-    }
-
     if(agt->enrollment_cfg && agt->enrollment_cfg->enabled) {
         // If autoenrollment is enabled, we will avoid exit if there is no valid key
         OS_PassEmptyKeyfile();
@@ -173,11 +151,6 @@ int local_start()
         logsk[1].location = NULL;
         logsk[1].mode = 0;
         logsk[1].prefix = NULL;
-    }
-
-    /* Read execd config */
-    if (!WinExecd_Start()) {
-        agt->execdq = -1;
     }
 
     /* Initialize sender */
@@ -221,13 +194,6 @@ int local_start()
     if (hMutex == NULL) {
         merror_exit("Error creating mutex.");
     }
-    /* Start syscheck thread */
-    w_create_thread(NULL,
-                     0,
-                     (LPTHREAD_START_ROUTINE)skthread,
-                     NULL,
-                     0,
-                     (LPDWORD)&threadID);
 
     /* Launch rotation thread */
     int rotate_log = getDefine_Int("monitord", "rotate_log", 0, 1);
@@ -265,12 +231,10 @@ int local_start()
                      (LPDWORD)&threadID2);
 
     // Read wodle configuration and start modules
-
+    wmodule * cur_module;
     if (!wm_config() && !wm_check()) {
-        wmodule * cur_module;
-
         for (cur_module = wmodules; cur_module; cur_module = cur_module->next) {
-            w_create_thread(NULL,
+            cur_module->thread = (unsigned int)w_create_thread(NULL,
                             0,
                             (LPTHREAD_START_ROUTINE)cur_module->context->start,
                             cur_module->data,
@@ -280,10 +244,11 @@ int local_start()
     }
 
     /* Send agent stopped message at exit */
-    atexit(send_agent_stopped_message);
+    atexit(stop_wmodules);
 
-    /* Start logcollector -- main process here */
-    LogCollectorStart();
+    for (cur_module = wmodules; cur_module; cur_module = cur_module->next) {
+        WaitForSingleObject((HANDLE)cur_module->thread, INFINITE);
+    }
 
     if (sysinfo_module){
         so_free_library(sysinfo_module);

@@ -116,7 +116,7 @@ void *read_snortfull(logreader *lf, int *rc, int drop_it) {
 
 file_error:
 
-        merror("Bad formated snort full file.");
+        mterror(WM_LOGCOLLECTOR_LOGTAG, "Bad formated snort full file.");
         *rc = -1;
         return (NULL);
 
@@ -128,6 +128,6 @@ file_error:
         w_update_file_status(lf->file, current_position, &context);
     }
 
-    mdebug2("Read %d lines from %s", lines, lf->file);
+    mtdebug2(WM_LOGCOLLECTOR_LOGTAG, "Read %d lines from %s", lines, lf->file);
     return (NULL);
 }

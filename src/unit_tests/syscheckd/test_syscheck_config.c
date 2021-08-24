@@ -14,8 +14,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../syscheckd/syscheck.h"
-#include "../config/syscheck-config.h"
+#include "syscheck.h"
+#include "../wazuh_modules/wmodules.h"
 
 #include "../wrappers/common.h"
 #include "../wrappers/posix/pthread_wrappers.h"
@@ -70,9 +70,29 @@ void test_Read_Syscheck_Config_success(void **state)
     expect_any_always(__wrap__mdebug1, formatted_msg);
     expect_any_always(__wrap__mwarn, formatted_msg);
 
-
-    ret = Read_Syscheck_Config("test_syscheck_max_dir.conf");
-
+    will_return(__wrap_getDefine_Int, 5);
+    will_return(__wrap_getDefine_Int, 256);
+    will_return(__wrap_getDefine_Int, 1024);
+    will_return(__wrap_getDefine_Int, 600);
+#ifndef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 4096);
+#endif //TEST_WINAGENT
+#ifndef TEST_SERVER
+    will_return(__wrap_getDefine_Int, 0);
+#endif //TEST_SERVER
+#ifdef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 1024);
+#endif //TEST_WINAGENT
+    OS_XML xml;
+    XML_NODE node;
+    XML_NODE chld_node;
+    OS_ReadXML("test_syscheck_max_dir.conf", &xml);
+    node = OS_GetElementsbyNode(&xml, NULL);
+    chld_node = OS_GetElementsbyNode(&xml, node[0]);
+    ret = Read_Syscheck(&xml, chld_node, &syscheck, CWMODULE, 0);
+    OS_ClearNode(chld_node);
+    OS_ClearNode(node);
+    OS_ClearXML(&xml);
     assert_int_equal(ret, 0);
     assert_int_equal(syscheck.rootcheck, 0);
 
@@ -115,26 +135,6 @@ void test_Read_Syscheck_Config_success(void **state)
     assert_int_equal(syscheck.diff_folder_size, 0);
 }
 
-void test_Read_Syscheck_Config_invalid(void **state)
-{
-    (void) state;
-    int ret;
-
-    expect_any_always(__wrap__mdebug1, formatted_msg);
-    expect_string(__wrap__merror, formatted_msg, "(1226): Error reading XML file 'invalid.conf': XMLERR: File 'invalid.conf' not found. (line 0).");
-
- /* expect_function_call_any(__wrap_pthread_rwlock_wrlock);
-    expect_function_call_any(__wrap_pthread_rwlock_unlock);
-    expect_function_call_any(__wrap_pthread_rwlock_rdlock);
-    expect_function_call_any(__wrap_pthread_mutex_lock);
-    expect_function_call_any(__wrap_pthread_mutex_unlock);
-*/
-
-    ret = Read_Syscheck_Config("invalid.conf");
-
-    assert_int_equal(ret, OS_INVALID);
-}
-
 void test_Read_Syscheck_Config_undefined(void **state)
 {
     (void) state;
@@ -146,10 +146,29 @@ void test_Read_Syscheck_Config_undefined(void **state)
     expect_function_call_any(__wrap_pthread_mutex_unlock);
     expect_function_call_any(__wrap_pthread_rwlock_rdlock);
 
-    expect_any_always(__wrap__mdebug1, formatted_msg);
-
-
-    ret = Read_Syscheck_Config("test_syscheck2.conf");
+    will_return(__wrap_getDefine_Int, 5);
+    will_return(__wrap_getDefine_Int, 256);
+    will_return(__wrap_getDefine_Int, 1024);
+    will_return(__wrap_getDefine_Int, 600);
+#ifndef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 4096);
+#endif //TEST_WINAGENT
+#ifndef TEST_SERVER
+    will_return(__wrap_getDefine_Int, 0);
+#endif //TEST_SERVER
+#ifdef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 1024);
+#endif //TEST_WINAGENT
+    OS_XML xml;
+    XML_NODE node;
+    XML_NODE chld_node;
+    OS_ReadXML("test_syscheck2.conf", &xml);
+    node = OS_GetElementsbyNode(&xml, NULL);
+    chld_node = OS_GetElementsbyNode(&xml, node[0]);
+    ret = Read_Syscheck(&xml, chld_node, &syscheck, CWMODULE, 0);
+    OS_ClearNode(chld_node);
+    OS_ClearNode(node);
+    OS_ClearXML(&xml);
 
     assert_int_equal(ret, 0);
     assert_int_equal(syscheck.rootcheck, 0);
@@ -195,10 +214,21 @@ void test_Read_Syscheck_Config_unparsed(void **state)
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
 
-    expect_any_always(__wrap__mdebug1, formatted_msg);
-
-    ret = Read_Syscheck_Config("test_empty_config.conf");
-
+    will_return(__wrap_getDefine_Int, 5);
+    will_return(__wrap_getDefine_Int, 256);
+    will_return(__wrap_getDefine_Int, 1024);
+    will_return(__wrap_getDefine_Int, 600);
+#ifndef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 4096);
+#endif //TEST_WINAGENT
+#ifndef TEST_SERVER
+    will_return(__wrap_getDefine_Int, 0);
+#endif //TEST_SERVER
+    OS_XML xml;
+    OS_ReadXML("test_empty_config.conf", &xml);
+    assert_null(OS_GetElementsbyNode(&xml, NULL));
+    ret = Read_Syscheck(&xml, NULL, &syscheck, CWMODULE, 0);
+    OS_ClearXML(&xml);
     assert_int_equal(ret, 1);
 
     // Default values
@@ -250,7 +280,29 @@ void test_getSyscheckConfig(void **state)
 
     expect_any_always(__wrap__mdebug1, formatted_msg);
 
-    Read_Syscheck_Config("test_syscheck_config.conf");
+    will_return(__wrap_getDefine_Int, 5);
+    will_return(__wrap_getDefine_Int, 256);
+    will_return(__wrap_getDefine_Int, 1024);
+    will_return(__wrap_getDefine_Int, 600);
+#ifndef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 4096);
+#endif //TEST_WINAGENT
+#ifndef TEST_SERVER
+    will_return(__wrap_getDefine_Int, 0);
+#endif //TEST_SERVER
+#ifdef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 1024);
+#endif //TEST_WINAGENT
+    OS_XML xml;
+    XML_NODE node;
+    XML_NODE chld_node;
+    OS_ReadXML("test_syscheck_config.conf", &xml);
+    node = OS_GetElementsbyNode(&xml, NULL);
+    chld_node = OS_GetElementsbyNode(&xml, node[0]);
+    Read_Syscheck(&xml, chld_node, &syscheck, CWMODULE, 0);
+    OS_ClearNode(chld_node);
+    OS_ClearNode(node);
+    OS_ClearXML(&xml);
     ret = getSyscheckConfig();
     *state = ret;
 
@@ -389,10 +441,29 @@ void test_getSyscheckConfig_no_audit(void **state)
     expect_function_call_any(__wrap_pthread_mutex_unlock);
     expect_function_call_any(__wrap_pthread_rwlock_rdlock);
 
-    expect_any_always(__wrap__mdebug1, formatted_msg);
-
-
-    Read_Syscheck_Config("test_syscheck2.conf");
+    will_return(__wrap_getDefine_Int, 5);
+    will_return(__wrap_getDefine_Int, 256);
+    will_return(__wrap_getDefine_Int, 1024);
+    will_return(__wrap_getDefine_Int, 600);
+#ifndef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 4096);
+#endif //TEST_WINAGENT
+#ifndef TEST_SERVER
+    will_return(__wrap_getDefine_Int, 0);
+#endif //TEST_SERVER
+#ifdef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 1024);
+#endif //TEST_WINAGENT
+    OS_XML xml;
+    XML_NODE node;
+    XML_NODE chld_node;
+    OS_ReadXML("test_syscheck2.conf", &xml);
+    node = OS_GetElementsbyNode(&xml, NULL);
+    chld_node = OS_GetElementsbyNode(&xml, node[0]);
+    Read_Syscheck(&xml, chld_node, &syscheck, CWMODULE, 0);
+    OS_ClearNode(chld_node);
+    OS_ClearNode(node);
+    OS_ClearXML(&xml);
 
     ret = getSyscheckConfig();
     *state = ret;
@@ -506,9 +577,19 @@ void test_getSyscheckConfig_no_directories(void **state)
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
     expect_function_call_any(__wrap_pthread_rwlock_rdlock);
 
-    expect_any_always(__wrap__mdebug1, formatted_msg);
-
-    Read_Syscheck_Config("test_empty_config.conf");
+    will_return(__wrap_getDefine_Int, 5);
+    will_return(__wrap_getDefine_Int, 256);
+    will_return(__wrap_getDefine_Int, 1024);
+    will_return(__wrap_getDefine_Int, 600);
+    will_return(__wrap_getDefine_Int, 4096);
+#ifndef TEST_SERVER
+    will_return(__wrap_getDefine_Int, 0);
+#endif //TEST_SERVER
+    OS_XML xml;
+    OS_ReadXML("test_empty_config.conf", &xml);
+    assert_null(OS_GetElementsbyNode(&xml, NULL));
+    Read_Syscheck(&xml, NULL, &syscheck, CWMODULE, 0);
+    OS_ClearXML(&xml);
 
     ret = getSyscheckConfig();
 
@@ -524,12 +605,18 @@ void test_getSyscheckConfig_no_directories(void **state)
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
     expect_function_call_any(__wrap_pthread_rwlock_rdlock);
 
-    expect_any_always(__wrap__mdebug1, formatted_msg);
-
-    Read_Syscheck_Config("test_empty_config.conf");
+    will_return(__wrap_getDefine_Int, 5);
+    will_return(__wrap_getDefine_Int, 256);
+    will_return(__wrap_getDefine_Int, 1024);
+    will_return(__wrap_getDefine_Int, 600);
+    will_return(__wrap_getDefine_Int, 0);
+    OS_XML xml;
+    OS_ReadXML("test_empty_config.conf", &xml);
+    assert_null(OS_GetElementsbyNode(&xml, NULL));
+    Read_Syscheck(&xml, NULL, &syscheck, CWMODULE, 0);
+    OS_ClearXML(&xml);
 
     ret = getSyscheckConfig();
-
 
     assert_non_null(ret);
     assert_int_equal(cJSON_GetArraySize(ret), 1);
@@ -609,9 +696,30 @@ void test_SyscheckConf_DirectoriesWithCommas(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_unlock);
     expect_function_call_any(__wrap_pthread_rwlock_rdlock);
 
-    expect_any_always(__wrap__mdebug1, formatted_msg);
+    will_return(__wrap_getDefine_Int, 5);
+    will_return(__wrap_getDefine_Int, 256);
+    will_return(__wrap_getDefine_Int, 1024);
+    will_return(__wrap_getDefine_Int, 600);
+#ifndef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 4096);
+#endif //TEST_WINAGENT
+#ifndef TEST_SERVER
+    will_return(__wrap_getDefine_Int, 0);
+#endif //TEST_SERVER
+#ifdef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 1024);
+#endif //TEST_WINAGENT
+    OS_XML xml;
+    XML_NODE node;
+    XML_NODE chld_node;
+    OS_ReadXML("test_syscheck3.conf", &xml);
+    node = OS_GetElementsbyNode(&xml, NULL);
+    chld_node = OS_GetElementsbyNode(&xml, node[0]);
+    ret = Read_Syscheck(&xml, chld_node, &syscheck, CWMODULE, 0);
+    OS_ClearNode(chld_node);
+    OS_ClearNode(node);
+    OS_ClearXML(&xml);
 
-    ret = Read_Syscheck_Config("test_syscheck3.conf");
     assert_int_equal(ret, 0);
 
     #ifdef WIN32
@@ -638,7 +746,29 @@ void test_getSyscheckInternalOptions(void **state)
 
     expect_any_always(__wrap__mdebug1, formatted_msg);
 
-    Read_Syscheck_Config("test_syscheck.conf");
+    will_return(__wrap_getDefine_Int, 5);
+    will_return(__wrap_getDefine_Int, 256);
+    will_return(__wrap_getDefine_Int, 1024);
+    will_return(__wrap_getDefine_Int, 600);
+#ifndef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 4096);
+#endif //TEST_WINAGENT
+#ifndef TEST_SERVER
+    will_return(__wrap_getDefine_Int, 0);
+#endif //TEST_SERVER
+#ifdef TEST_WINAGENT
+    will_return(__wrap_getDefine_Int, 1024);
+#endif //TEST_WINAGENT
+    OS_XML xml;
+    XML_NODE node;
+    XML_NODE chld_node;
+    OS_ReadXML("test_syscheck.conf", &xml);
+    node = OS_GetElementsbyNode(&xml, NULL);
+    chld_node = OS_GetElementsbyNode(&xml, node[0]);
+    Read_Syscheck(&xml, chld_node, &syscheck, CWMODULE, 0);
+    OS_ClearNode(chld_node);
+    OS_ClearNode(node);
+    OS_ClearXML(&xml);
 
     ret = getSyscheckInternalOptions();
     *state = ret;
@@ -805,7 +935,6 @@ void test_fim_copy_directory_return_dir_copied(void **state) {
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_teardown(test_Read_Syscheck_Config_success, restart_syscheck),
-        cmocka_unit_test_teardown(test_Read_Syscheck_Config_invalid, restart_syscheck),
         cmocka_unit_test_teardown(test_Read_Syscheck_Config_undefined, restart_syscheck),
         cmocka_unit_test_teardown(test_Read_Syscheck_Config_unparsed, restart_syscheck),
         cmocka_unit_test_teardown(test_getSyscheckConfig, restart_syscheck),

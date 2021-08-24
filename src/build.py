@@ -20,7 +20,28 @@ class CommandLineParser:
         :return True is 'arg' is a correct one, False otherwise.
         """
         ret = False
-        if arg == 'wazuh_modules/syscollector' or arg == 'shared_modules/dbsync' or arg == 'shared_modules/rsync' or arg == 'shared_modules/utils' or arg == 'data_provider':
+        validArguments = ['wazuh_modules/syscollector','wazuh_modules/syscollector/',
+                          'shared_modules/dbsync','shared_modules/dbsync/',
+                          'shared_modules/rsync','shared_modules/rsync/',
+                          'shared_modules/utils','shared_modules/utils/',
+                          'data_provider','data_provider/']
+        if arg in validArguments:
+            # Available modules so far
+            ret = True
+        return ret
+
+    def _targetIsValid(self, arg):
+        """
+        Checks if the argument being selected is a correct one.
+
+        :param arg: Argument being selected in the command line.
+        :return True is 'arg' is a correct one, False otherwise.
+        """
+        ret = False
+        validArguments = ['agent',
+                          'server',
+                          'winagent']
+        if arg in validArguments:
             # Available modules so far
             ret = True
         return ret
@@ -39,6 +60,7 @@ class CommandLineParser:
         parser.add_argument("--clean", help="Clean the lib. Example: python3 build.py --clean <data_provider|shared_modules/dbsync|shared_modules/rsync|shared_modules/utils|wazuh_modules/syscollector>")
         parser.add_argument("--cppcheck", help="Run cppcheck on the code. Example: python3 build.py --cppcheck <data_provider|shared_modules/dbsync|shared_modules/rsync|shared_modules/utils|wazuh_modules/syscollector>")
         parser.add_argument("--asan", help="Run ASAN on the code. Example: python3 build.py --asan <data_provider|shared_modules/dbsync|shared_modules/rsync|shared_modules/utils|wazuh_modules/syscollector>")
+        parser.add_argument("--scanbuild", help="Run scan-build on the code. Example: python3 build.py --scanbuild <agent|server|winagent>")
         parser.add_argument("--scheck", help="Run AStyle on the code for checking purposes. Example: python3 build.py --scheck <data_provider|shared_modules/dbsync|shared_modules/rsync|shared_modules/utils|wazuh_modules/syscollector>")
         parser.add_argument("--sformat", help="Run AStyle on the code formatting the needed files. Example: python3 build.py --sformat <data_provider|shared_modules/dbsync|shared_modules/rsync|shared_modules/utils|wazuh_modules/syscollector>")
 
@@ -69,6 +91,8 @@ class CommandLineParser:
             if self._argIsValid(args.asan):
                 utils.runASAN(args.asan)
                 action = True
+            if self._targetIsValid(args.scanbuild):
+                utils.runScanBuild(args.scanbuild)
             if self._argIsValid(args.scheck):
                 utils.runAStyleCheck(args.scheck)
                 action = True

@@ -30,6 +30,7 @@
 #include "wrappers/wazuh/syscheckd/audit_rule_handling_wrappers.h"
 
 #include "external/procps/readproc.h"
+#define SYSCHECK_MODULE_TAG "wazuh-modulesd:syscheck"
 
 extern atomic_int_t audit_health_check_creation;
 extern atomic_int_t hc_thread_active;
@@ -234,7 +235,8 @@ void test_init_auditd_socket_failure(void **state) {
     will_return(__wrap_OS_ConnectUnixDomain, -5);
 
     snprintf(buffer, OS_SIZE_128, FIM_ERROR_WHODATA_SOCKET_CONNECT, AUDIT_SOCKET);
-    expect_string(__wrap__merror, formatted_msg, buffer);
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, buffer);
 
     ret = init_auditd_socket();
     assert_int_equal(ret, -1);
@@ -346,7 +348,8 @@ void test_set_auditd_config_audit_socket_not_created(void **state) {
 
     will_return(__wrap_IsSocket, 1);
 
-    expect_string(__wrap__mwarn, formatted_msg, buffer);
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtwarn, formatted_msg, buffer);
 
     int ret;
     ret = set_auditd_config();
@@ -378,7 +381,9 @@ void test_set_auditd_config_audit_socket_not_created_restart(void **state) {
     will_return(__wrap_OS_SHA1_File, 0);
 
     snprintf(buffer, OS_SIZE_128, FIM_AUDIT_NOSOCKET, AUDIT_SOCKET);
-    expect_string(__wrap__minfo, formatted_msg, buffer);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, buffer);
+
     expect_string(__wrap_IsSocket, sock, AUDIT_SOCKET);
     will_return(__wrap_IsSocket, 1);
 
@@ -399,7 +404,8 @@ void test_set_auditd_config_audit_plugin_tampered_configuration(void **state) {
     // Plugin not created
     const char *audit3_socket = "/etc/audit/plugins.d/af_wazuh.conf";
 
-    expect_string(__wrap__minfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
 
     expect_any(__wrap_OS_SHA1_Str, str);
     expect_any(__wrap_OS_SHA1_Str, length);
@@ -436,7 +442,8 @@ void test_set_auditd_config_audit_plugin_tampered_configuration(void **state) {
     expect_string(__wrap_symlink, path2, audit3_socket);
     will_return(__wrap_symlink, 0);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6025): Audit plugin configuration (etc/af_wazuh.conf) was modified. Restarting Auditd service.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6025): Audit plugin configuration (etc/af_wazuh.conf) was modified. Restarting Auditd service.");
 
     // Restart
     syscheck.restart_audit = 1;
@@ -467,7 +474,8 @@ void test_set_auditd_config_audit_plugin_not_created(void **state) {
     will_return(__wrap_OS_SHA1_File, "6e3a100fc85241f04ed9686d37738e7d08086fb4");
     will_return(__wrap_OS_SHA1_File, -1);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
 
     expect_abspath(AUDIT_SOCKET, 1);
     expect_abspath(AUDIT_CONF_FILE, 1);
@@ -486,7 +494,8 @@ void test_set_auditd_config_audit_plugin_not_created(void **state) {
     expect_string(__wrap_symlink, path2, audit3_socket);
     will_return(__wrap_symlink, 1);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6025): Audit plugin configuration (etc/af_wazuh.conf) was modified. Restarting Auditd service.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6025): Audit plugin configuration (etc/af_wazuh.conf) was modified. Restarting Auditd service.");
 
     // Restart
     syscheck.restart_audit = 1;
@@ -504,7 +513,8 @@ void test_set_auditd_config_audit_plugin_not_created_fopen_error(void **state) {
     expect_string(__wrap_IsDir, file, "/etc/audit/plugins.d");
     will_return(__wrap_IsDir, 0);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
 
     // Plugin not created
     const char *audit3_socket = "/etc/audit/plugins.d/af_wazuh.conf";
@@ -525,7 +535,8 @@ void test_set_auditd_config_audit_plugin_not_created_fopen_error(void **state) {
     expect_string(__wrap_fopen, mode, "w");
     will_return(__wrap_fopen, 0);
 
-    expect_string(__wrap__merror, formatted_msg, "(1103): Could not open file 'etc/af_wazuh.conf' due to [(0)-(Success)].");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "(1103): Could not open file 'etc/af_wazuh.conf' due to [(0)-(Success)].");
 
     int ret;
     ret = set_auditd_config();
@@ -535,7 +546,10 @@ void test_set_auditd_config_audit_plugin_not_created_fopen_error(void **state) {
 
 
 void test_set_auditd_config_audit_plugin_not_created_fclose_error(void **state) {
-    expect_string(__wrap__minfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
+    (void) state;
+
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
 
     // Audit 3
     expect_string(__wrap_IsDir, file, "/etc/audit/plugins.d");
@@ -565,7 +579,8 @@ void test_set_auditd_config_audit_plugin_not_created_fclose_error(void **state) 
     expect_value(__wrap_fclose, _File, 1);
     will_return(__wrap_fclose, -1);
 
-    expect_string(__wrap__merror, formatted_msg, "(1140): Could not close file 'etc/af_wazuh.conf' due to [(0)-(Success)].");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "(1140): Could not close file 'etc/af_wazuh.conf' due to [(0)-(Success)].");
 
     int ret;
     ret = set_auditd_config();
@@ -575,7 +590,10 @@ void test_set_auditd_config_audit_plugin_not_created_fclose_error(void **state) 
 
 
 void test_set_auditd_config_audit_plugin_not_created_recreate_symlink(void **state) {
-    expect_string(__wrap__minfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
+    (void) state;
+
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
 
     // Audit 3
     expect_string(__wrap_IsDir, file, "/etc/audit/plugins.d");
@@ -622,7 +640,8 @@ void test_set_auditd_config_audit_plugin_not_created_recreate_symlink(void **sta
     // Do not restart
     syscheck.restart_audit = 0;
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6910): Audit plugin configuration was modified. You need to restart Auditd. Who-data will be disabled.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6910): Audit plugin configuration was modified. You need to restart Auditd. Who-data will be disabled.");
 
     int ret;
     ret = set_auditd_config();
@@ -639,7 +658,8 @@ void test_set_auditd_config_audit_plugin_not_created_recreate_symlink_restart(vo
     // Plugin not created
     const char *audit3_socket = "/etc/audit/plugins.d/af_wazuh.conf";
 
-    expect_string(__wrap__minfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
 
     expect_abspath(AUDIT_SOCKET, 1);
     expect_abspath(AUDIT_CONF_FILE, 1);
@@ -676,7 +696,8 @@ void test_set_auditd_config_audit_plugin_not_created_recreate_symlink_restart(vo
     expect_string(__wrap_symlink, path2, audit3_socket);
     will_return(__wrap_symlink, 0);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6025): Audit plugin configuration (etc/af_wazuh.conf) was modified. Restarting Auditd service.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6025): Audit plugin configuration (etc/af_wazuh.conf) was modified. Restarting Auditd service.");
 
     // Restart
     syscheck.restart_audit = 1;
@@ -694,7 +715,8 @@ void test_set_auditd_config_audit_plugin_not_created_recreate_symlink_error(void
     expect_string(__wrap_IsDir, file, "/etc/audit/plugins.d");
     will_return(__wrap_IsDir, 0);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
 
     // Plugin not created
     const char *audit3_socket = "/etc/audit/plugins.d/af_wazuh.conf";
@@ -734,7 +756,8 @@ void test_set_auditd_config_audit_plugin_not_created_recreate_symlink_error(void
     expect_string(__wrap_symlink, path2, audit3_socket);
     will_return(__wrap_symlink, -1);
 
-    expect_string(__wrap__merror, formatted_msg, "(1134): Unable to link from '/etc/audit/plugins.d/af_wazuh.conf' to 'etc/af_wazuh.conf' due to [(17)-(File exists)].");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "(1134): Unable to link from '/etc/audit/plugins.d/af_wazuh.conf' to 'etc/af_wazuh.conf' due to [(17)-(File exists)].");
 
     int ret;
     ret = set_auditd_config();
@@ -748,7 +771,8 @@ void test_set_auditd_config_audit_plugin_not_created_recreate_symlink_unlink_err
     expect_string(__wrap_IsDir, file, "/etc/audit/plugins.d");
     will_return(__wrap_IsDir, 0);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6024): Generating Auditd socket configuration file: 'etc/af_wazuh.conf'");
 
     // Plugin not created
     const char *audit3_socket = "/etc/audit/plugins.d/af_wazuh.conf";
@@ -783,7 +807,8 @@ void test_set_auditd_config_audit_plugin_not_created_recreate_symlink_unlink_err
     expect_string(__wrap_unlink, file, "/etc/audit/plugins.d/af_wazuh.conf");
     will_return(__wrap_unlink, -1);
 
-    expect_string(__wrap__merror, formatted_msg, "(1123): Unable to delete file: '/etc/audit/plugins.d/af_wazuh.conf' due to [(17)-(File exists)].");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "(1123): Unable to delete file: '/etc/audit/plugins.d/af_wazuh.conf' due to [(17)-(File exists)].");
 
     int ret;
     ret = set_auditd_config();
@@ -856,7 +881,8 @@ void test_audit_read_events_select_error(void **state) {
 
     // Switch
     will_return(__wrap_select, -1);
-    expect_string(__wrap__merror, formatted_msg, "(1114): Error during select()-call due to [(17)-(File exists)].");
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, "(1114): Error during select()-call due to [(17)-(File exists)].");
     expect_value(__wrap_sleep, seconds, 1);
 
     audit_read_events(audit_sock, &audit_thread_active);
@@ -915,9 +941,11 @@ void test_audit_read_events_select_success_recv_error_audit_connection_closed(vo
     // If (!byteRead)
     expect_value(__wrap_recv, __fd, *audit_sock);
     will_return(__wrap_recv, 0);
-    expect_string(__wrap__mwarn, formatted_msg, "(6912): Audit: connection closed.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6912): Audit: connection closed.");
     expect_value(__wrap_sleep, seconds, 1);
-    expect_string(__wrap__minfo, formatted_msg, "(6029): Audit: reconnecting... (1)");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6029): Audit: reconnecting... (1)");
 
     // init_auditd_socket failure
     expect_any(__wrap_OS_ConnectUnixDomain, path);
@@ -925,17 +953,20 @@ void test_audit_read_events_select_success_recv_error_audit_connection_closed(vo
     expect_any(__wrap_OS_ConnectUnixDomain, max_msg_size);
     will_return(__wrap_OS_ConnectUnixDomain, -5);
     snprintf(buffer, OS_SIZE_128, FIM_ERROR_WHODATA_SOCKET_CONNECT, AUDIT_SOCKET);
-    expect_string(__wrap__merror, formatted_msg, buffer);
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, buffer);
 
     while (++counter < max_retries){
-        expect_any(__wrap__minfo, formatted_msg);
+        expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+        expect_any(__wrap__mtinfo, formatted_msg);
         expect_value(__wrap_sleep, seconds, 1);
         // init_auditd_socket failure
         expect_any(__wrap_OS_ConnectUnixDomain, path);
         expect_any(__wrap_OS_ConnectUnixDomain, type);
         expect_any(__wrap_OS_ConnectUnixDomain, max_msg_size);
         will_return(__wrap_OS_ConnectUnixDomain, -5);
-        expect_string(__wrap__merror, formatted_msg, buffer);
+        expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+        expect_string(__wrap__mterror, formatted_msg, buffer);
     }
     expect_string(__wrap_SendMSG, message, "wazuh: Audit: Connection closed");
     expect_string(__wrap_SendMSG, locmsg, SYSCHECK);
@@ -964,9 +995,11 @@ void test_audit_read_events_select_success_recv_error_audit_reconnect(void **sta
     // If (!byteRead)
     expect_value(__wrap_recv, __fd, *audit_sock);
     will_return(__wrap_recv, 0);
-    expect_string(__wrap__mwarn, formatted_msg, "(6912): Audit: connection closed.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6912): Audit: connection closed.");
     expect_value(__wrap_sleep, seconds, 1);
-    expect_string(__wrap__minfo, formatted_msg, "(6029): Audit: reconnecting... (1)");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6029): Audit: reconnecting... (1)");
 
     // init_auditd_socket failure
     expect_any(__wrap_OS_ConnectUnixDomain, path);
@@ -974,18 +1007,21 @@ void test_audit_read_events_select_success_recv_error_audit_reconnect(void **sta
     expect_any(__wrap_OS_ConnectUnixDomain, max_msg_size);
     will_return(__wrap_OS_ConnectUnixDomain, -5);
     snprintf(buffer, OS_SIZE_128, FIM_ERROR_WHODATA_SOCKET_CONNECT, AUDIT_SOCKET);
-    expect_string(__wrap__merror, formatted_msg, buffer);
+    expect_string(__wrap__mterror, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mterror, formatted_msg, buffer);
 
     // While (*audit_sock < 0)
     // init_auditd_socket succes
-    expect_any(__wrap__minfo, formatted_msg);
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_any(__wrap__mtinfo, formatted_msg);
     expect_value(__wrap_sleep, seconds, 1);
     expect_any(__wrap_OS_ConnectUnixDomain, path);
     expect_any(__wrap_OS_ConnectUnixDomain, type);
     expect_any(__wrap_OS_ConnectUnixDomain, max_msg_size);
     will_return(__wrap_OS_ConnectUnixDomain, 124);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6030): Audit: connected.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6030): Audit: connected.");
 
     // In audit_reload_rules()
     expect_function_call(__wrap_fim_audit_reload_rules);
@@ -1078,7 +1114,8 @@ void test_audit_read_events_select_success_recv_success_no_id(void **state) {
     will_return(__wrap_recv, strlen(buffer));
     will_return(__wrap_recv, buffer);
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6928): Couldn't get event ID from Audit message. Line: '         type=SYSC arch=c000003e syscall=263 success=yes exit'.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6928): Couldn't get event ID from Audit message. Line: '         type=SYSC arch=c000003e syscall=263 success=yes exit'.");
 
     audit_read_events(audit_sock, &audit_thread_active);
 }
@@ -1124,7 +1161,8 @@ void test_audit_read_events_select_success_recv_success_too_long(void **state) {
     will_return(__wrap_recv, strlen(buffer2));
     will_return(__wrap_recv, buffer2);
 
-    expect_string(__wrap__mwarn, formatted_msg, "(6929): Caching Audit message: event too long. Event with ID: '1571914029.306:3004254' will be discarded.");
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "(6929): Caching Audit message: event too long. Event with ID: '1571914029.306:3004254' will be discarded.");
 
     audit_read_events(audit_sock, &audit_thread_active);
 
@@ -1149,9 +1187,11 @@ void test_audit_rules_to_realtime(void **state) {
     will_return_count(__wrap_search_audit_rule, 0, 4);
 
     snprintf(error_msg, OS_SIZE_128, FIM_ERROR_WHODATA_ADD_DIRECTORY, "/test0");
-    expect_string(__wrap__mwarn, formatted_msg, error_msg);
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, error_msg);
     snprintf(error_msg2, OS_SIZE_128, FIM_ERROR_WHODATA_ADD_DIRECTORY, "/test1");
-    expect_string(__wrap__mwarn, formatted_msg, error_msg2);
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, error_msg2);
 
     audit_rules_to_realtime();
 
@@ -1183,7 +1223,8 @@ void test_audit_rules_to_realtime_first_search_audit_rule_fail(void **state) {
     will_return_count(__wrap_search_audit_rule, 0, 2);
 
     snprintf(error_msg, OS_SIZE_128, FIM_ERROR_WHODATA_ADD_DIRECTORY, "/test1");
-    expect_string(__wrap__mwarn, formatted_msg, error_msg);
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, error_msg);
 
     audit_rules_to_realtime();
 
@@ -1215,7 +1256,8 @@ void test_audit_rules_to_realtime_second_search_audit_rule_fail(void **state) {
     will_return(__wrap_search_audit_rule, 1);
 
     snprintf(error_msg, OS_SIZE_128, FIM_ERROR_WHODATA_ADD_DIRECTORY, "/test0");
-    expect_string(__wrap__mwarn, formatted_msg, error_msg);
+    expect_string(__wrap__mtwarn, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, error_msg);
 
     audit_rules_to_realtime();
 
@@ -1241,13 +1283,15 @@ void test_audit_create_rules_file(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6365): Added directory '/test0' to audit rules file.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6365): Added directory '/test0' to audit rules file.");
 
     expect_any(__wrap_fprintf, __stream);
     expect_string(__wrap_fprintf, formatted_msg, "-w /test0 -p wa -k wazuh_fim\n");
     will_return(__wrap_fprintf, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6365): Added directory '/test1' to audit rules file.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6365): Added directory '/test1' to audit rules file.");
 
     expect_any(__wrap_fprintf, __stream);
     expect_string(__wrap_fprintf, formatted_msg, "-w /test1 -p wa -k wazuh_fim\n");
@@ -1262,7 +1306,8 @@ void test_audit_create_rules_file(void **state) {
     expect_string(__wrap_symlink, path2, AUDIT_RULES_LINK);
     will_return(__wrap_symlink, 1);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6045): Created audit rules file, due to audit immutable mode rules will be loaded in the next reboot.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6045): Created audit rules file, due to audit immutable mode rules will be loaded in the next reboot.");
 
     audit_create_rules_file();
 }
@@ -1275,7 +1320,8 @@ void test_audit_create_rules_file_fopen_fail(void **state) {
     will_return(__wrap_fopen, 0);
 
     snprintf(error_msg, OS_SIZE_128, FOPEN_ERROR, AUDIT_RULES_FILE, errno, strerror(errno));
-    expect_string(__wrap__merror, formatted_msg, error_msg);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, error_msg);
 
     audit_create_rules_file();
 }
@@ -1294,13 +1340,15 @@ void test_audit_create_rules_file_fclose_fail(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6365): Added directory '/test0' to audit rules file.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6365): Added directory '/test0' to audit rules file.");
 
     expect_any(__wrap_fprintf, __stream);
     expect_string(__wrap_fprintf, formatted_msg, "-w /test0 -p wa -k wazuh_fim\n");
     will_return(__wrap_fprintf, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6365): Added directory '/test1' to audit rules file.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6365): Added directory '/test1' to audit rules file.");
 
     expect_any(__wrap_fprintf, __stream);
     expect_string(__wrap_fprintf, formatted_msg, "-w /test1 -p wa -k wazuh_fim\n");
@@ -1310,7 +1358,8 @@ void test_audit_create_rules_file_fclose_fail(void **state) {
     will_return(__wrap_fclose, 1);
 
     snprintf(error_msg, OS_SIZE_128, FCLOSE_ERROR, AUDIT_RULES_FILE, errno, strerror(errno));
-    expect_string(__wrap__merror, formatted_msg, error_msg);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, error_msg);
 
     audit_create_rules_file();
 }
@@ -1327,13 +1376,15 @@ void test_audit_create_rules_file_symlink_exist(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6365): Added directory '/test0' to audit rules file.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6365): Added directory '/test0' to audit rules file.");
 
     expect_any(__wrap_fprintf, __stream);
     expect_string(__wrap_fprintf, formatted_msg, "-w /test0 -p wa -k wazuh_fim\n");
     will_return(__wrap_fprintf, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6365): Added directory '/test1' to audit rules file.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6365): Added directory '/test1' to audit rules file.");
 
     expect_any(__wrap_fprintf, __stream);
     expect_string(__wrap_fprintf, formatted_msg, "-w /test1 -p wa -k wazuh_fim\n");
@@ -1357,7 +1408,8 @@ void test_audit_create_rules_file_symlink_exist(void **state) {
     expect_string(__wrap_symlink, path2, AUDIT_RULES_LINK);
     will_return(__wrap_symlink, 0);
 
-    expect_string(__wrap__minfo, formatted_msg, "(6045): Created audit rules file, due to audit immutable mode rules will be loaded in the next reboot.");
+    expect_string(__wrap__mtinfo, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "(6045): Created audit rules file, due to audit immutable mode rules will be loaded in the next reboot.");
 
     audit_create_rules_file();
 }
@@ -1376,13 +1428,15 @@ void test_audit_create_rules_file_unlink_fail(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6365): Added directory '/test0' to audit rules file.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6365): Added directory '/test0' to audit rules file.");
 
     expect_any(__wrap_fprintf, __stream);
     expect_string(__wrap_fprintf, formatted_msg, "-w /test0 -p wa -k wazuh_fim\n");
     will_return(__wrap_fprintf, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6365): Added directory '/test1' to audit rules file.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6365): Added directory '/test1' to audit rules file.");
 
     expect_any(__wrap_fprintf, __stream);
     expect_string(__wrap_fprintf, formatted_msg, "-w /test1 -p wa -k wazuh_fim\n");
@@ -1403,7 +1457,8 @@ void test_audit_create_rules_file_unlink_fail(void **state) {
     will_return(__wrap_unlink, -1);
 
     snprintf(error_msg, OS_SIZE_128, UNLINK_ERROR, AUDIT_RULES_LINK, errno, strerror(errno));
-    expect_string(__wrap__merror, formatted_msg, error_msg);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, error_msg);
 
     audit_create_rules_file();
 }
@@ -1422,13 +1477,15 @@ void test_audit_create_rules_file_symlink_fail(void **state) {
     expect_function_call_any(__wrap_pthread_mutex_lock);
     expect_function_call_any(__wrap_pthread_mutex_unlock);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6365): Added directory '/test0' to audit rules file.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6365): Added directory '/test0' to audit rules file.");
 
     expect_any(__wrap_fprintf, __stream);
     expect_string(__wrap_fprintf, formatted_msg, "-w /test0 -p wa -k wazuh_fim\n");
     will_return(__wrap_fprintf, 0);
 
-    expect_string(__wrap__mdebug2, formatted_msg, "(6365): Added directory '/test1' to audit rules file.");
+    expect_string(__wrap__mtdebug2, tag, SYSCHECK_MODULE_TAG);
+    expect_string(__wrap__mtdebug2, formatted_msg, "(6365): Added directory '/test1' to audit rules file.");
 
     expect_any(__wrap_fprintf, __stream);
     expect_string(__wrap_fprintf, formatted_msg, "-w /test1 -p wa -k wazuh_fim\n");
@@ -1446,7 +1503,8 @@ void test_audit_create_rules_file_symlink_fail(void **state) {
     errno = 1;
 
     snprintf(error_msg, OS_SIZE_256, LINK_ERROR, AUDIT_RULES_LINK, AUDIT_RULES_FILE, errno, strerror(errno));
-    expect_string(__wrap__merror, formatted_msg, error_msg);
+    expect_string(__wrap__mterror, tag, SYSCHECK_LOGTAG);
+    expect_string(__wrap__mterror, formatted_msg, error_msg);
 
     audit_create_rules_file();
 }
