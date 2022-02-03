@@ -24,7 +24,7 @@ void callback_queue_push_ex() {
 }
 
 int setup_queue(void **state) {
-    w_linked_queue_t *queue = linked_queue_init();
+    w_linked_queue_t *queue = linked_queue_init(NULL);
     *state = queue;
     queue_ptr = queue;
     return 0;
@@ -32,18 +32,13 @@ int setup_queue(void **state) {
 
 int teardown_queue(void **state) {
     w_linked_queue_t *queue = *state;
-    int *data = linked_queue_pop(queue);
-    while(data) {
-        os_free(data);
-        data = linked_queue_pop(queue);
-    }
     linked_queue_free(queue);
     queue_ptr = NULL;
     return 0;
 }
 
 int setup_queue_with_values(void **state) {
-    w_linked_queue_t *queue = linked_queue_init();
+    w_linked_queue_t *queue = linked_queue_init(NULL);
     *state = queue;
     int *ptr = malloc(sizeof(int));
     *ptr = 3;
@@ -226,6 +221,9 @@ void test_linked_queue_unlink_and_push_end(void **state) {
     os_free(ptr2);
     os_free(ptr3);
 }
+void test_linked_queue_free(void **state) {
+
+}
 /************************************************/
 int main(void) {
     const struct CMUnitTest tests[] = {
@@ -237,6 +235,7 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_linked_queue_unlink_and_push_mid, setup_queue, teardown_queue),
         cmocka_unit_test_setup_teardown(test_linked_queue_unlink_and_push_start, setup_queue, teardown_queue),
         cmocka_unit_test_setup_teardown(test_linked_queue_unlink_and_push_end, setup_queue, teardown_queue),
+        cmocka_unit_test_setup_teardown(test_linked_queue_free, setup_queue_with_values, teardown_queue),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
