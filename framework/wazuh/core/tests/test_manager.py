@@ -4,8 +4,8 @@
 # This program is a free software; you can redistribute it and/or modify it under the terms of GPLv2
 
 import os
-from unittest.mock import patch
 from datetime import timezone, datetime
+from unittest.mock import patch
 
 import pytest
 
@@ -13,6 +13,7 @@ with patch('wazuh.core.common.wazuh_uid'):
     with patch('wazuh.core.common.wazuh_gid'):
         from wazuh.core.manager import *
         from wazuh.core.exception import WazuhException
+        from wazuh.core.common import WazuhDaemons
 
 test_data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data', 'manager')
 ossec_log_path = '{0}/ossec_log.log'.format(test_data_path)
@@ -137,44 +138,49 @@ def test_validate_ossec_conf(mock_wazuhsocket, mock_exists):
         result = validate_ossec_conf()
 
         assert result == {'status': 'OK'}
-        mock_exists.assert_called_with(join(common.WAZUH_PATH, 'queue', 'sockets', 'com'))
+        mock_exists.assert_called_with(os.path.join(common.WAZUH_PATH, 'queue', 'sockets', 'com'))
 
 
 @patch("wazuh.core.manager.exists", return_value=True)
 def test_validation_ko(mock_exists):
-    # Socket creation raise socket.error
-    with patch('socket.socket', side_effect=socket.error):
-        with pytest.raises(WazuhInternalError, match='.* 1013 .*'):
-            validate_ossec_conf()
+    # Daemon status check
+    with pytest.raises(WazuhError, match='.* 1017 .*'):
+        validate_ossec_conf()
 
-    with patch('socket.socket.bind'):
-        # Socket connection raise socket.error
-        with patch('socket.socket.connect', side_effect=socket.error):
+    with patch('wazuh.core.manager.check_wazuh_status'):
+        # Socket creation raise socket.error
+        with patch('socket.socket', side_effect=socket.error):
             with pytest.raises(WazuhInternalError, match='.* 1013 .*'):
                 validate_ossec_conf()
 
-        # execq_socket_path not exists
-        with patch("wazuh.core.manager.exists", return_value=False):
-            with pytest.raises(WazuhInternalError, match='.* 1901 .*'):
-                validate_ossec_conf()
-
-        with patch('socket.socket.connect'):
-            # Socket send raise socket.error
-            with patch('wazuh.core.manager.WazuhSocket.send', side_effect=socket.error):
-                with pytest.raises(WazuhInternalError, match='.* 1014 .*'):
+        with patch('socket.socket.bind'):
+            # Socket connection raise socket.error
+            with patch('socket.socket.connect', side_effect=socket.error):
+                with pytest.raises(WazuhInternalError, match='.* 1013 .*'):
                     validate_ossec_conf()
 
-            with patch('socket.socket.send'):
-                # Socket recv raise socket.error
-                with patch('wazuh.core.manager.WazuhSocket.receive', side_effect=socket.timeout):
+            # execq_socket_path not exists
+            with patch("wazuh.core.manager.exists", return_value=False):
+                with pytest.raises(WazuhInternalError, match='.* 1901 .*'):
+                    validate_ossec_conf()
+
+            with patch('socket.socket.connect'):
+                # Socket send raise socket.error
+                with patch('wazuh.core.manager.WazuhSocket.send', side_effect=socket.error):
                     with pytest.raises(WazuhInternalError, match='.* 1014 .*'):
                         validate_ossec_conf()
 
-                # _parse_execd_output raise KeyError
-                with patch('wazuh.core.manager.WazuhSocket'):
-                    with patch('wazuh.core.manager.parse_execd_output', side_effect=KeyError):
-                        with pytest.raises(WazuhInternalError, match='.* 1904 .*'):
+                with patch('socket.socket.send'):
+                    # Socket recv raise socket.error
+                    with patch('wazuh.core.manager.WazuhSocket.receive', side_effect=socket.timeout):
+                        with pytest.raises(WazuhInternalError, match='.* 1014 .*'):
                             validate_ossec_conf()
+
+                    # _parse_execd_output raise KeyError
+                    with patch('wazuh.core.manager.WazuhSocket'):
+                        with patch('wazuh.core.manager.parse_execd_output', side_effect=KeyError):
+                            with pytest.raises(WazuhInternalError, match='.* 1904 .*'):
+                                validate_ossec_conf()
 
 
 @pytest.mark.parametrize('error_flag, error_msg', [
@@ -209,3 +215,26 @@ def test_get_api_config():
     """Checks that get_api_config method is returning current api_conf dict."""
     result = get_api_conf()
     assert result == {'experimental_features': True}
+
+
+@pytest.mark.parametrize('required_daemons', [
+    {WazuhDaemons.AUTH, WazuhDaemons.DB},
+    {WazuhDaemons.SYSCHECK}
+])
+@patch('wazuh.core.manager.get_manager_status', return_value={process: 'running' for process in get_manager_status()})
+def test_check_wazuh_status(status_mock, required_daemons):
+    """Test `check_wazuh_status` function."""
+    check_wazuh_status(required_daemons)
+
+
+@patch('wazuh.core.cluster.cluster.get_node', return_value={'node': 'random_node'})
+def test_DistributedAPI_check_wazuh_status_exception(node_info_mock):
+    """Test exceptions from `check_wazuh_status` function."""
+    required_daemons = {WazuhDaemons.DB, WazuhDaemons.AUTH}
+    try:
+        check_wazuh_status(required_daemons)
+    except WazuhError as e:
+        assert e.code == 1017
+        assert e._extra_message['node_name'] == 'random_node'
+        extra_message = ', '.join([f'{daemon.value}->{"stopped"}' for daemon in required_daemons])
+        assert e._extra_message['not_ready_daemons'] == extra_message

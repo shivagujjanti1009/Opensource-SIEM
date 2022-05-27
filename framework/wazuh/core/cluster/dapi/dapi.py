@@ -42,7 +42,7 @@ class DistributedAPI:
     def __init__(self, f: Callable, logger: logging.getLogger, f_kwargs: Dict = None, node: c_common.Handler = None,
                  debug: bool = False, request_type: str = 'local_master', current_user: str = '',
                  wait_for_complete: bool = False, from_cluster: bool = False, is_async: bool = False,
-                 broadcasting: bool = False, basic_services: tuple = None, local_client_arg: str = None,
+                 broadcasting: bool = False, local_client_arg: str = None,
                  rbac_permissions: Dict = None, nodes: list = None, api_timeout: int = None):
         """Class constructor.
 
@@ -68,8 +68,6 @@ class DistributedAPI:
             Default `False`, specify if the request is asynchronous or not
         broadcasting : bool, optional
             Default `False`, True if the request need to be executed in all managers
-        basic_services : tuple, optional
-            Default `None`, services that must be started for correct behaviour
         local_client_arg: str, optional
             Default `None`, LocalClient additional arguments
         rbac_permissions : dict, optional
@@ -97,12 +95,6 @@ class DistributedAPI:
         self.current_user = current_user
         self.origin_module = 'API'
         self.nodes = nodes if nodes is not None else list()
-        if not basic_services:
-            self.basic_services = ('wazuh-modulesd', 'wazuh-analysisd', 'wazuh-execd', 'wazuh-db')
-            if common.WAZUH_INSTALL_TYPE != "local":
-                self.basic_services += ('wazuh-remoted',)
-        else:
-            self.basic_services = basic_services
 
         self.local_clients = []
         self.local_client_arg = local_client_arg
@@ -196,34 +188,6 @@ class DistributedAPI:
             return exception.WazuhInternalError(1000,
                                                 dapi_errors=self.get_error_info(e))
 
-    def check_wazuh_status(self):
-        """
-        There are some services that are required for wazuh to correctly process API requests. If any of those services
-        is not running, the API must raise an exception indicating that:
-            * It's not ready yet to process requests if services are restarting
-            * There's an error in any of those services that must be addressed before using the API if any service is
-              in failed status.
-            * Wazuh must be started before using the API is the services are stopped.
-
-        The basic services wazuh needs to be running are: wazuh-modulesd, wazuh-remoted, wazuh-analysisd, wazuh-execd
-        and wazuh-db
-        """
-        if self.f == wazuh.core.manager.status:
-            return
-
-        status = wazuh.core.manager.status()
-
-        not_ready_daemons = {k: status[k] for k in self.basic_services if status[k] in ('failed',
-                                                                                        'restarting',
-                                                                                        'stopped')}
-
-        if not_ready_daemons:
-            extra_info = {
-                'node_name': self.node_info.get('node', 'UNKNOWN NODE'),
-                'not_ready_daemons': ', '.join([f'{key}->{value}' for key, value in not_ready_daemons.items()])
-            }
-            raise exception.WazuhError(1017, extra_message=extra_info)
-
     @staticmethod
     def run_local(f, f_kwargs, logger, rbac_permissions, broadcasting, nodes, current_user):
         """Run framework SDK function locally in another process."""
@@ -257,7 +221,6 @@ class DistributedAPI:
                 del self.f_kwargs['agent_list']
 
             before = time.time()
-            self.check_wazuh_status()
 
             timeout = self.api_request_timeout if not self.wait_for_complete else None
 
@@ -340,7 +303,6 @@ class DistributedAPI:
                 "from_cluster": self.from_cluster,
                 "is_async": self.is_async,
                 "local_client_arg": self.local_client_arg,
-                "basic_services": self.basic_services,
                 "rbac_permissions": self.rbac_permissions,
                 "current_user": self.current_user,
                 "broadcasting": self.broadcasting,

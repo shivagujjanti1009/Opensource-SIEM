@@ -374,7 +374,7 @@ class WorkerHandler(client.AbstractClient, c_common.WazuhCommon):
             True if both checksums are equal, False if these differ or cannot be
             compared because there are records that need to be synchronized in the local DB.
         """
-        wdb_conn = WazuhDBConnection()
+        wdb_conn = WazuhDBConnection(check_daemon=False)
         sync_object = c_common.SyncWazuhdb(manager=self, logger=logger, cmd=b'syn_g_m_w',
                                            data_retriever=wdb_conn.run_wdb_command,
                                            get_data_command='global sync-agent-groups-get ',
@@ -572,7 +572,7 @@ class WorkerHandler(client.AbstractClient, c_common.WazuhCommon):
         and sent to the master's wazuh-db.
         """
         logger = self.task_loggers["Agent-info sync"]
-        wdb_conn = WazuhDBConnection()
+        wdb_conn = WazuhDBConnection(check_daemon=False)
         sync_object = c_common.SyncWazuhdb(manager=self, logger=logger, cmd=b'syn_a_w_m',
                                            data_retriever=wdb_conn.run_wdb_command,
                                            get_data_command='global sync-agent-info-get ',
@@ -591,7 +591,7 @@ class WorkerHandler(client.AbstractClient, c_common.WazuhCommon):
         and sent to the master's wazuh-db.
         """
         logger = self.task_loggers["Agent-groups sync"]
-        wdb_conn = WazuhDBConnection()
+        wdb_conn = WazuhDBConnection(check_daemon=False)
         sync_object = c_common.SyncWazuhdb(manager=self, logger=logger, cmd=b'syn_g_w_m',
                                            data_retriever=wdb_conn.run_wdb_command,
                                            get_data_command='global sync-agent-groups-get ',
