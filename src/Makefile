@@ -21,7 +21,17 @@ CHECK_CENTOS5 := $(shell sh -c 'grep "CentOS release 5." /etc/redhat-release 2>&
 
 ARCH_FLAGS =
 
+DBG_SYM_SUPPORT?=yes
+ifneq (${uname_S},Linux)
+ifneq (${uname_S},Darwin)
+ifneq (${TARGET},winagent)
+DBG_SYM_SUPPORT=no
+endif
+endif
+endif
+
 ROUTE_PATH := $(shell pwd)
+SYMBOLS_PATH = symbols
 EXTERNAL_JSON=external/cJSON/
 EXTERNAL_ZLIB=external/zlib/
 EXTERNAL_SQLITE=external/sqlite/
@@ -75,9 +85,34 @@ USE_MSGPACK_OPT=yes
 DISABLE_JEMALLOC?=no
 DISABLE_SYSC?=no
 DISABLE_CISCAT?=no
+DISABLE_STRIP_SYMBOLS?=no
+
+
+ifeq (${TARGET}, winagent)
+EXECUTABLE_FILES := $(shell find win32 -maxdepth 1 -type f -name "*.exe"  -perm /a=x)
+EXECUTABLE_FILES += $(shell find . -type f -name "*.dll" ! -path "./external/*" ! -path "./win32/*" -perm /a=x)
+else
+ifeq (${uname_S}, Linux)
+EXECUTABLE_FILES := $(shell find . -maxdepth 1 -type f ! -name "*.so"  -perm /a=x)
+EXECUTABLE_FILES += $(shell find . -type f -not -path "./external/*" -name "*.so" -perm /a=x)
+EXECUTABLE_FILES:= $(EXECUTABLE_FILES:./%=%)
+endif
+ifeq (${uname_S}, Darwin)
+EXECUTABLE_FILES=$(shell find . -maxdepth 1 -type f -exec /bin/sh -c "file {} | grep 'bit executable' > /dev/null" \; -print)
+EXECUTABLE_FILES+=$(shell find . -type f -not -path "./external/*" -not -path "./${SYMBOLS_PATH}/*" -name  "*.dylib" -print)
+endif
+endif
+
+
+ifneq (,$(filter ${DISABLE_STRIP_SYMBOLS},YES yes y Y 1))
+ifeq (${DBG_SYM_SUPPORT},no)
+$(error Option not available for current OS)
+endif
+endif
 
 ifeq (${TARGET},winagent)
 CMAKE_OPTS=-DCMAKE_SYSTEM_NAME=Windows -DCMAKE_C_COMPILER=${MING_BASE}${CC} -DCMAKE_CXX_COMPILER=${MING_BASE}${CXX}
+WIN_RESOURCE_OBJ=-DRESOURCE_OBJ=win32/version-dll.o
 WIN_CMAKE_RULES+=win32/sysinfo
 WIN_CMAKE_RULES+=win32/shared_modules
 ifeq (,$(filter ${DISABLE_SYSC},YES yes y Y 1))
@@ -95,12 +130,20 @@ RSYNC_TEST=-DUNIT_TEST=ON #--coverage
 SYSCOLLECTOR_TEST=-DUNIT_TEST=ON #--coverage
 SYSINFO_TEST=-DUNIT_TEST=ON #--coverage
 endif
-ifneq (,$(filter ${DEBUG},YES yes y Y 1))
-SHARED_MODULES_RELEASE_TYPE=-DCMAKE_BUILD_TYPE=Debug
-GTEST_RELEASE_TYPE=-DCMAKE_BUILD_TYPE=Debug
-SYSCOLLECTOR_RELEASE_TYPE=-DCMAKE_BUILD_TYPE=Debug
-SYSINFO_RELEASE_TYPE=-DCMAKE_BUILD_TYPE=Debug
+
+# Debug symbols and optimization of CMake subprojects
+CMAKE_BUILD_TYPE?=Release
+ifeq (${DBG_SYM_SUPPORT},yes)
+CMAKE_BUILD_TYPE=RelWithDebInfo
 endif
+ifneq (,$(filter ${DEBUG},YES yes y Y 1))
+CMAKE_BUILD_TYPE=Debug
+endif
+SHARED_MODULES_RELEASE_TYPE=-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+GTEST_RELEASE_TYPE=-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+SYSCOLLECTOR_RELEASE_TYPE=-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+SYSINFO_RELEASE_TYPE=-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+
 
 ifeq (${COVERITY}, YES)
 	SHARED_MODULES_RELEASE_TYPE+=-DCOVERITY=1
@@ -286,12 +329,26 @@ ifneq (,$(filter ${DEBUGAD},YES yes y Y 1))
 	DEFINES+=-DDEBUGAD
 endif
 
+
+# Debug symbols
+DBG_ENABLED?=no
+ifeq (${DBG_SYM_SUPPORT}, yes)
+	OSSEC_CFLAGS+=-g
+	DBG_ENABLED=yes
+else
 ifneq (,$(filter ${DEBUG},YES yes y Y 1))
 	OSSEC_CFLAGS+=-g
+	DBG_ENABLED=yes
+endif
+endif
+
+# Optimization and assert() handling
+ifneq (,$(filter ${DEBUG},YES yes y Y 1))
+	OFLAGS+=-O0
 else
 	OSSEC_CFLAGS+=-DNDEBUG
 	OFLAGS+=-O2
-endif #DEBUG
+endif
 
 OSSEC_CFLAGS+=${OFLAGS}
 OSSEC_LDFLAGS+=${OFLAGS}
@@ -572,40 +629,42 @@ failtarget:
 help: failtarget
 	@echo
 	@echo "General options: "
-	@echo "   make V=yes                   Display full compiler messages. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make DEBUG=yes               Build with symbols and without optimization. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make DEBUGAD=yes             Enables extra debugging logging in wazuh-analysisd. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make INSTALLDIR=/path        Wazuh's installation path. Mandatory when compiling the python interpreter from sources using PYTHON_SOURCE."
-	@echo "   make ONEWAY=yes              Disables manager's ACK towards agent. It allows connecting agents without backward connection from manager. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make CLEANFULL=yes           Makes the alert mailing subject clear in the format: '<location> - <level> - <description>'. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make RESOURCES_URL           Set the Wazuh resources URL"
-	@echo "   make EXTERNAL_SRC_ONLY=yes   Combined with 'deps', it downloads only the external source code to be compiled as part of Wazuh building."
-	@echo "   make USE_ZEROMQ=yes          Build with zeromq support. Allowed values are auto, 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make USE_PRELUDE=yes         Build with prelude support. Allowed values are auto, 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make USE_INOTIFY=yes         Build with inotify support. Allowed values are auto, 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make USE_BIG_ENDIAN=yes      Build with big endian support. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make USE_SELINUX=yes         Build with SELinux policies. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make USE_AUDIT=yes           Build with audit service support. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make USE_MSGPACK_OPT=yes     Use default architecture for building msgpack library. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make DISABLE_JEMALLOC=yes     Not to build the JEMalloc library. Allowed values are 1, yes, YES, y, and Y, otherwise, the flag is ignored"
-	@echo "   make OFLAGS=-Ox              Overrides optimization level"
-	@echo "   make DISABLE_SYSC=yes        Not to build the Syscollector module (for unsupported systems). Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make DISABLE_CISCAT=yes      Not to build the CIS-CAT module (for unsupported systems). Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make OPTIMIZE_CPYTHON=yes    Enable this flag to optimize the python interpreter build, which is performed when used PYTHON_SOURCE. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
-	@echo "   make PYTHON_SOURCE=yes       Used along the deps target. Downloads the sources needed to build the python interpreter. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make V=yes                       Display full compiler messages. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make DEBUG=yes                   Build with symbols and without optimization. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make DEBUGAD=yes                 Enables extra debugging logging in wazuh-analysisd. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make INSTALLDIR=/path            Wazuh's installation path. Mandatory when compiling the python interpreter from sources using PYTHON_SOURCE."
+	@echo "   make BUILD_VERSION=version       Windows detailed build version. If ommited, VERSION file content will be used."
+	@echo "   make ONEWAY=yes                  Disables manager's ACK towards agent. It allows connecting agents without backward connection from manager. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make CLEANFULL=yes               Makes the alert mailing subject clear in the format: '<location> - <level> - <description>'. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make RESOURCES_URL               Set the Wazuh resources URL"
+	@echo "   make EXTERNAL_SRC_ONLY=yes       Combined with 'deps', it downloads only the external source code to be compiled as part of Wazuh building."
+	@echo "   make USE_ZEROMQ=yes              Build with zeromq support. Allowed values are auto, 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make USE_PRELUDE=yes             Build with prelude support. Allowed values are auto, 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make USE_INOTIFY=yes             Build with inotify support. Allowed values are auto, 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make USE_BIG_ENDIAN=yes          Build with big endian support. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make USE_SELINUX=yes             Build with SELinux policies. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make USE_AUDIT=yes               Build with audit service support. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make USE_MSGPACK_OPT=yes         Use default architecture for building msgpack library. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make DISABLE_JEMALLOC=yes        Not to build the JEMalloc library. Allowed values are 1, yes, YES, y, and Y, otherwise, the flag is ignored"
+	@echo "   make OFLAGS=-Ox                  Overrides optimization level"
+	@echo "   make DISABLE_SYSC=yes            Not to build the Syscollector module (for unsupported systems). Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make DISABLE_CISCAT=yes          Not to build the CIS-CAT module (for unsupported systems). Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make DISABLE_STRIP_SYMBOLS=yes   Disable debug symbols stripping from binaries. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make OPTIMIZE_CPYTHON=yes        Enable this flag to optimize the python interpreter build, which is performed when used PYTHON_SOURCE. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make PYTHON_SOURCE=yes           Used along the deps target. Downloads the sources needed to build the python interpreter. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
 	@echo
 	@echo "Database options: "
-	@echo "   make DATABASE=mysql          Build with MYSQL Support"
-	@echo "                                Use MYSQL_CFLAGS adn MYSQL_LIBS to override defaults"
-	@echo "   make DATABASE=pgsql          Build with PostgreSQL Support "
-	@echo "                                Use PGSQL_CFLAGS adn PGSQL_LIBS to override defaults"
+	@echo "   make DATABASE=mysql              Build with MYSQL Support"
+	@echo "                                    Use MYSQL_CFLAGS and MYSQL_LIBS to override defaults"
+	@echo "   make DATABASE=pgsql          	   Build with PostgreSQL Support "
+	@echo "                                    Use PGSQL_CFLAGS and PGSQL_LIBS to override defaults"
 	@echo
 	@echo "Geoip support: "
-	@echo "   make USE_GEOIP=yes           Build with GeoIP support. Allowed values are auto 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make USE_GEOIP=yes               Build with GeoIP support. Allowed values are auto 1, yes, YES, y and Y, otherwise, the flag is ignored"
 	@echo
 	@echo "User options: "
-	@echo "   make WAZUH_GROUP=wazuh       Set wazuh group"
-	@echo "   make WAZUH_USER=wazuh        Set wazuh user"
+	@echo "   make WAZUH_GROUP=wazuh           Set wazuh group"
+	@echo "   make WAZUH_USER=wazuh            Set wazuh user"
 	@echo
 	@echo "Examples: Client with debugging enabled"
 	@echo "   make TARGET=agent DEBUG=yes"
@@ -614,43 +673,45 @@ help: failtarget
 settings:
 	@echo
 	@echo "General settings:"
-	@echo "    TARGET:             ${TARGET}"
-	@echo "    V:                  ${V}"
-	@echo "    DEBUG:              ${DEBUG}"
-	@echo "    DEBUGAD             ${DEBUGAD}"
-	@echo "    INSTALLDIR:         ${INSTALLDIR}"
-	@echo "    DATABASE:           ${DATABASE}"
-	@echo "    ONEWAY:             ${ONEWAY}"
-	@echo "    CLEANFULL:          ${CLEANFULL}"
-	@echo "    RESOURCES_URL:      ${RESOURCES_URL}"
-	@echo "    EXTERNAL_SRC_ONLY:  ${EXTERNAL_SRC_ONLY}"
+	@echo "    TARGET:                  ${TARGET}"
+	@echo "    V:                       ${V}"
+	@echo "    DEBUG:                   ${DEBUG}"
+	@echo "    DEBUGAD                  ${DEBUGAD}"
+	@echo "    INSTALLDIR:              ${INSTALLDIR}"
+	@echo "    BUILD_VERSION            ${BUILD_VERSION}"
+	@echo "    DATABASE:                ${DATABASE}"
+	@echo "    ONEWAY:                  ${ONEWAY}"
+	@echo "    CLEANFULL:               ${CLEANFULL}"
+	@echo "    RESOURCES_URL:           ${RESOURCES_URL}"
+	@echo "    EXTERNAL_SRC_ONLY:       ${EXTERNAL_SRC_ONLY}"
 	@echo "User settings:"
-	@echo "    WAZUH_GROUP:        ${WAZUH_GROUP}"
-	@echo "    WAZUH_USER:         ${WAZUH_USER}"
+	@echo "    WAZUH_GROUP:             ${WAZUH_GROUP}"
+	@echo "    WAZUH_USER:              ${WAZUH_USER}"
 	@echo "USE settings:"
-	@echo "    USE_ZEROMQ:         ${USE_ZEROMQ}"
-	@echo "    USE_GEOIP:          ${USE_GEOIP}"
-	@echo "    USE_PRELUDE:        ${USE_PRELUDE}"
-	@echo "    USE_INOTIFY:        ${USE_INOTIFY}"
-	@echo "    USE_BIG_ENDIAN:     ${USE_BIG_ENDIAN}"
-	@echo "    USE_SELINUX:        ${USE_SELINUX}"
-	@echo "    USE_AUDIT:          ${USE_AUDIT}"
-	@echo "    DISABLE_SYSC:       ${DISABLE_SYSC}"
-	@echo "    DISABLE_CISCAT:     ${DISABLE_CISCAT}"
+	@echo "    USE_ZEROMQ:              ${USE_ZEROMQ}"
+	@echo "    USE_GEOIP:               ${USE_GEOIP}"
+	@echo "    USE_PRELUDE:             ${USE_PRELUDE}"
+	@echo "    USE_INOTIFY:             ${USE_INOTIFY}"
+	@echo "    USE_BIG_ENDIAN:          ${USE_BIG_ENDIAN}"
+	@echo "    USE_SELINUX:             ${USE_SELINUX}"
+	@echo "    USE_AUDIT:               ${USE_AUDIT}"
+	@echo "    DISABLE_SYSC:            ${DISABLE_SYSC}"
+	@echo "    DISABLE_CISCAT:          ${DISABLE_CISCAT}"
+	@echo "    DISABLE_STRIP_SYMBOLS:   ${DISABLE_STRIP_SYMBOLS}"
 	@echo "Mysql settings:"
-	@echo "    includes:           ${MI}"
-	@echo "    libs:               ${ML}"
+	@echo "    includes:                ${MI}"
+	@echo "    libs:                    ${ML}"
 	@echo "Pgsql settings:"
-	@echo "    includes:           ${PI}"
-	@echo "    libs:               ${PL}"
+	@echo "    includes:                ${PI}"
+	@echo "    libs:                    ${PL}"
 	@echo "Defines:"
 	@echo "    ${DEFINES}"
 	@echo "Compiler:"
-	@echo "    CFLAGS            ${OSSEC_CFLAGS}"
-	@echo "    LDFLAGS           ${OSSEC_LDFLAGS}"
-	@echo "    LIBS              ${OSSEC_LIBS}"
-	@echo "    CC                ${CC}"
-	@echo "    MAKE              ${MAKE}"
+	@echo "    CFLAGS                   ${OSSEC_CFLAGS}"
+	@echo "    LDFLAGS                  ${OSSEC_LDFLAGS}"
+	@echo "    LIBS                     ${OSSEC_LIBS}"
+	@echo "    CC                       ${CC}"
+	@echo "    MAKE                     ${MAKE}"
 
 BUILD_SERVER+=wazuh-maild -
 BUILD_SERVER+=wazuh-csyslogd -
@@ -701,37 +762,33 @@ ifeq (${MAKECMDGOALS},server)
 $(error Do not use 'server' directly, use 'TARGET=server')
 endif
 server: external
-ifneq (${uname_S},HP-UX)
-	${MAKE} ${BUILD_CMAKE_PROJECTS}
-endif
-	${MAKE} ${BUILD_SERVER}
+	${MAKE} ${BUILD_SERVER} ${BUILD_CMAKE_PROJECTS}
+	@${MAKE} strip TARGET=${TARGET} DISABLE_STRIP_SYMBOLS=${DISABLE_STRIP_SYMBOLS}
 
 ifeq (${MAKECMDGOALS},local)
 $(error Do not use 'local' directly, use 'TARGET=local')
 endif
 local: external
-ifneq (${uname_S},HP-UX)
-	${MAKE} ${BUILD_CMAKE_PROJECTS}
-endif
-	${MAKE} ${BUILD_SERVER}
+	${MAKE} ${BUILD_SERVER} ${BUILD_CMAKE_PROJECTS}
+	@${MAKE} strip TARGET=${TARGET} DISABLE_STRIP_SYMBOLS=${DISABLE_STRIP_SYMBOLS}
 
 ifeq (${MAKECMDGOALS},hybrid)
 $(error Do not use 'hybrid' directly, use 'TARGET=hybrid')
 endif
 hybrid: external
-ifneq (${uname_S},HP-UX)
-	${MAKE} ${BUILD_CMAKE_PROJECTS}
-endif
-	${MAKE} ${BUILD_SERVER}
+	${MAKE} ${BUILD_SERVER} ${BUILD_CMAKE_PROJECTS}
+	@${MAKE} strip TARGET=${TARGET} DISABLE_STRIP_SYMBOLS=${DISABLE_STRIP_SYMBOLS}
 
 ifeq (${MAKECMDGOALS},agent)
 $(error Do not use 'agent' directly, use 'TARGET=agent')
 endif
 agent: external
 ifneq (${uname_S},HP-UX)
-	${MAKE} ${BUILD_CMAKE_PROJECTS}
-endif
+	${MAKE} ${BUILD_AGENT} ${BUILD_CMAKE_PROJECTS}
+	@${MAKE} strip TARGET=${TARGET} DISABLE_STRIP_SYMBOLS=${DISABLE_STRIP_SYMBOLS}
+else
 	${MAKE} ${BUILD_AGENT}
+endif
 
 ifneq (,$(filter ${USE_SELINUX},YES yes y Y 1))
 server local hybrid agent: selinux
@@ -745,6 +802,36 @@ $(SELINUX_POLICY): $(SELINUX_MODULE)
 $(SELINUX_MODULE): $(SELINUX_ENFORCEMENT)
 	checkmodule -M -m -o $@ $?
 
+ifeq (${TARGET}, winagent)
+strip:
+else
+ifeq (${TARGET}, agent)
+strip: ${BUILD_AGENT} ${BUILD_CMAKE_PROJECTS}
+else
+strip: ${BUILD_SERVER} ${BUILD_CMAKE_PROJECTS}
+endif
+endif
+ifeq (,$(filter ${DISABLE_STRIP_SYMBOLS},YES yes y Y 1))
+ifeq (${uname_S}, Linux)
+ifeq (${TARGET}, winagent)
+	@if test -n "${WIN_STRIP_TOOL_PATH}"; then \
+		if test -d "${WIN_STRIP_TOOL_PATH}" -a -f "${WIN_STRIP_TOOL_PATH}/cv2pdb.exe" && command -v wine > /dev/null 2>&1; then \
+			$(foreach binary, ${EXECUTABLE_FILES}, (${MING_BASE}objdump -h $(binary) | grep -q ".debug_info" && wine ${WIN_STRIP_TOOL_PATH}/cv2pdb.exe $(binary) $(binary) ${SYMBOLS_PATH}/$(basename $(notdir $(binary))).pdb) || true;) \
+		else \
+			echo "Error during debug symbols stripping: cv2pdb.exe or wine were not found." && false; \
+		fi \
+	else \
+		$(foreach binary, ${EXECUTABLE_FILES}, ${MING_BASE}objcopy --strip-unneeded ${binary};) \
+	fi
+else
+	@$(foreach binary, ${EXECUTABLE_FILES}, (objdump -h $(binary) | grep -q .debug_info && objcopy --only-keep-debug $(binary) ${SYMBOLS_PATH}/$(basename $(notdir $(binary))).debug && objcopy --strip-unneeded $(binary) && objcopy --add-gnu-debuglink=${SYMBOLS_PATH}/$(basename $(notdir $(binary))).debug $(binary)) || true;)
+endif
+endif
+ifeq (${uname_S}, Darwin)
+	@$(foreach binary, ${EXECUTABLE_FILES}, (dsymutil -s $(binary) | grep -q N_OSO && dsymutil -o ${SYMBOLS_PATH}/$(basename $(notdir $(binary))).dSYM $(binary) && strip -S $(binary)) || true;)
+endif
+endif
+
 WINDOWS_BINS:=win32/wazuh-agent.exe win32/wazuh-agent-eventchannel.exe win32/manage_agents.exe win32/setup-windows.exe win32/setup-syscheck.exe win32/setup-iis.exe win32/os_win32ui.exe win32/agent-auth.exe win32/syscollector
 WINDOWS_ACTIVE_RESPONSES:=win32/restart-wazuh.exe win32/route-null.exe win32/netsh.exe
 
@@ -753,8 +840,10 @@ $(error Do not use 'winagent' directly, use 'TARGET=winagent')
 endif
 .PHONY: winagent
 winagent: external win32/libwinpthread-1.dll win32/libgcc_s_dw2-1.dll
+	${MAKE} $(BUILD_LIBS) CFLAGS="-DCLIENT -D_POSIX_C_SOURCE -DWIN32 -DPSAPI_VERSION=1" LIBS="-lwsock32 -lwevtapi -lshlwapi -lcomctl32 -ladvapi32 -lkernel32 -lpsapi -lgdi32 -liphlpapi -lws2_32 -lcrypt32"
 	${MAKE} ${WINDOWS_BINS} CFLAGS="-DCLIENT -D_POSIX_C_SOURCE -DWIN32 -DPSAPI_VERSION=1" LIBS="-lwsock32 -lwevtapi -lshlwapi -lcomctl32 -ladvapi32 -lkernel32 -lpsapi -lgdi32 -liphlpapi -lws2_32 -lcrypt32"
 	${MAKE} ${WINDOWS_ACTIVE_RESPONSES} CFLAGS="-DCLIENT -D_POSIX_C_SOURCE -DWIN32 -DPSAPI_VERSION=1" LIBS="-lwsock32 -lwevtapi -lshlwapi -lcomctl32 -ladvapi32 -lkernel32 -lpsapi -lgdi32 -liphlpapi -lws2_32 -lcrypt32"
+	@${MAKE} strip TARGET=${TARGET} DISABLE_STRIP_SYMBOLS=${DISABLE_STRIP_SYMBOLS}
 	cd win32/ && ./unix2dos.pl ossec.conf > default-ossec.conf
 	cd win32/ && ./unix2dos.pl help.txt > help_win.txt
 	cd win32/ && ./unix2dos.pl ../../etc/internal_options.conf > internal_options.conf
@@ -764,9 +853,9 @@ winagent: external win32/libwinpthread-1.dll win32/libgcc_s_dw2-1.dll
 	cd win32/ && ./unix2dos.pl ../REVISION > REVISION
 	cd win32/ && makensis wazuh-installer.nsi
 
-win32/shared_modules: $(WAZUHEXT_LIB)
-	cd ${DBSYNC} && mkdir -p build && cd build && cmake ${CMAKE_OPTS} ${DBSYNC_TEST} ${SHARED_MODULES_RELEASE_TYPE} .. && ${MAKE}
-	cd ${RSYNC} &&  mkdir -p build && cd build && cmake ${CMAKE_OPTS} ${RSYNC_TEST} ${SHARED_MODULES_RELEASE_TYPE} .. && ${MAKE}
+win32/shared_modules: $(WAZUHEXT_LIB) win32/version-dll.o
+	cd ${DBSYNC} && mkdir -p build && cd build && cmake ${CMAKE_OPTS} ${DBSYNC_TEST} ${SHARED_MODULES_RELEASE_TYPE} ${WIN_RESOURCE_OBJ} .. && ${MAKE}
+	cd ${RSYNC} &&  mkdir -p build && cd build && cmake ${CMAKE_OPTS} ${RSYNC_TEST} ${SHARED_MODULES_RELEASE_TYPE} ${WIN_RESOURCE_OBJ} .. && ${MAKE}
 ifneq (,$(filter ${TEST},YES yes y Y 1))
 ifneq (,$(filter ${DEBUG},YES yes y Y 1))
 	cd ${SHARED_UTILS_TEST} &&  mkdir -p build && cd build && cmake ${CMAKE_OPTS} ${SHARED_MODULES_RELEASE_TYPE} .. && ${MAKE}
@@ -775,12 +864,12 @@ endif
 
 #### Sysinfo ##
 
-win32/sysinfo: $(WAZUHEXT_LIB)
-	cd ${SYSINFO} && mkdir -p build && cd build && cmake ${CMAKE_OPTS} ${SYSINFO_OS} ${SYSINFO_TEST} ${SYSINFO_RELEASE_TYPE} .. && ${MAKE}
+win32/sysinfo: $(WAZUHEXT_LIB) win32/version-dll.o
+	cd ${SYSINFO} && mkdir -p build && cd build && cmake ${CMAKE_OPTS} ${SYSINFO_OS} ${SYSINFO_TEST} ${SYSINFO_RELEASE_TYPE} ${WIN_RESOURCE_OBJ} .. && ${MAKE}
 
 #### Syscollector ##
-win32/syscollector: win32/shared_modules win32/sysinfo
-	cd ${SYSCOLLECTOR} && mkdir -p build && cd build && cmake ${CMAKE_OPTS} ${SYSCOLLECTOR_TEST} ${SYSCOLLECTOR_RELEASE_TYPE} .. && ${MAKE}
+win32/syscollector: win32/shared_modules win32/sysinfo win32/version-dll.o
+	cd ${SYSCOLLECTOR} && mkdir -p build && cd build && cmake ${CMAKE_OPTS} ${SYSCOLLECTOR_TEST} ${SYSCOLLECTOR_RELEASE_TYPE} ${WIN_RESOURCE_OBJ} .. && ${MAKE}
 
 win32/libwinpthread-1.dll: ${WIN_PTHREAD_LIB}
 	cp $< $@
@@ -814,6 +903,7 @@ RPM_LIB = $(EXTERNAL_RPM)builddir/librpm.a
 JEMALLOC_LIB = $(EXTERNAL_JEMALLOC)lib/libjemalloc.so.2
 
 EXTERNAL_LIBS := $(JSON_LIB) $(ZLIB_LIB) $(OPENSSL_LIB) $(CRYPTO_LIB) $(SQLITE_LIB) $(LIBYAML_LIB) $(LIBPCRE2_LIB)
+
 
 # Adding libcurl only on Windows, Linux and MacOS
 ifeq (${TARGET},winagent)
@@ -869,9 +959,19 @@ ifeq ($(wildcard external/*/*),)
 	$(error No external directory found. Run "${MAKE} deps" before compiling external libraries)
 endif
 
+### Common externals configurations
+
+EXTERNALS_COMMON_CFLAGS = -w
+EXTERNALS_COMMON_CPPFLAGS = -w
+ifeq (${DBG_ENABLED},yes)
+	EXTERNALS_COMMON_CFLAGS += -g
+	EXTERNALS_COMMON_CPPFLAGS += -g
+endif
+
 #### OpenSSL ##########
 
 OPENSSL_FLAGS = enable-weak-ssl-ciphers no-shared
+OPENSSL_CFLAGS = CFLAGS="${EXTERNALS_COMMON_CFLAGS}"
 
 ifeq (${uname_M}, i386)
 ifeq ($(findstring BSD,${uname_S}), BSD)
@@ -884,22 +984,22 @@ ${CRYPTO_LIB}: ${OPENSSL_LIB}
 
 ${OPENSSL_LIB}:
 ifeq (${TARGET},winagent)
-	cd ${EXTERNAL_OPENSSL} && CC=${MING_BASE}${CC} RC=${MING_BASE}windres ./Configure $(OPENSSL_FLAGS) mingw && ${MAKE} build_libs
+	cd ${EXTERNAL_OPENSSL} && CC=${MING_BASE}${CC} RC=${MING_BASE}windres ${OPENSSL_CFLAGS} ./Configure $(OPENSSL_FLAGS) mingw && ${MAKE} build_libs
 else
 ifeq (${uname_S},Darwin)
-	cd ${EXTERNAL_OPENSSL} && ./Configure $(OPENSSL_FLAGS) darwin64-x86_64-cc && ${MAKE} build_libs
+	cd ${EXTERNAL_OPENSSL} && ${OPENSSL_CFLAGS} ./Configure $(OPENSSL_FLAGS) darwin64-x86_64-cc && ${MAKE} build_libs
 else
 ifeq (${uname_S},HP-UX)
-	cd ${EXTERNAL_OPENSSL} && MAKE=gmake ./Configure $(OPENSSL_FLAGS) hpux-ia64-gcc && ${MAKE} build_libs
+	cd ${EXTERNAL_OPENSSL} && ${OPENSSL_CFLAGS} MAKE=gmake ./Configure $(OPENSSL_FLAGS) hpux-ia64-gcc && ${MAKE} build_libs
 else
 ifeq (${uname_S},SunOS)
 ifeq ($(uname_M),i86pc)
-	cd ${EXTERNAL_OPENSSL} && ./Configure $(OPENSSL_FLAGS) solaris-x86-gcc && ${MAKE} build_libs
+	cd ${EXTERNAL_OPENSSL} && ${OPENSSL_CFLAGS} ./Configure $(OPENSSL_FLAGS) solaris-x86-gcc && ${MAKE} build_libs
 else
-	cd ${EXTERNAL_OPENSSL} && ./Configure $(OPENSSL_FLAGS) solaris-sparcv9-gcc && ${MAKE} build_libs
+	cd ${EXTERNAL_OPENSSL} && ${OPENSSL_CFLAGS} ./Configure $(OPENSSL_FLAGS) solaris-sparcv9-gcc && ${MAKE} build_libs
 endif
 else
-	cd ${EXTERNAL_OPENSSL} && ./config $(OPENSSL_FLAGS) && ${MAKE} build_libs
+	cd ${EXTERNAL_OPENSSL} && ${OPENSSL_CFLAGS} ./config $(OPENSSL_FLAGS) && ${MAKE} build_libs
 endif
 endif
 endif
@@ -907,26 +1007,28 @@ endif
 
 #### libplist ##########
 
+LIBPLIST_CFLAGS = CFLAGS="-fPIC ${EXTERNALS_COMMON_CFLAGS}"
+
 ${LIBPLIST_LIB}:
-	cd ${EXTERNAL_LIBPLIST} && ./autogen.sh --prefix=${ROUTE_PATH}/${EXTERNAL_LIBPLIST}bin && ${MAKE} && ${MAKE} install
+	cd ${EXTERNAL_LIBPLIST} && ${LIBPLIST_CFLAGS} ./autogen.sh --prefix=${ROUTE_PATH}/${EXTERNAL_LIBPLIST}bin && ${MAKE} && ${MAKE} install
 
 #### libffi ##########
 
-LIBFFI_FLAGS = "CFLAGS=-fPIC"
+LIBFFI_CFLAGS = CFLAGS="-fPIC ${EXTERNALS_COMMON_CFLAGS}"
 
 ${LIBFFI_LIB}:
-	cd ${EXTERNAL_LIBFFI} && ./configure $(LIBFFI_FLAGS) && ${MAKE}
+	cd ${EXTERNAL_LIBFFI} && $(LIBFFI_CFLAGS) ./configure && ${MAKE}
 
 #### zlib ##########
 
+ZLIB_CFLAGS = CFLAGS="-fPIC ${EXTERNALS_COMMON_CFLAGS}"
+
 $(ZLIB_LIB):
 ifeq (${TARGET},winagent)
-	cd ${EXTERNAL_ZLIB} && cp zconf.h.in zconf.h && ${MAKE} -f win32/Makefile.gcc PREFIX=${MING_BASE} libz.a
+	cd ${EXTERNAL_ZLIB} && cp zconf.h.in zconf.h && ${ZLIB_CFLAGS} ${MAKE} -f win32/Makefile.gcc PREFIX=${MING_BASE} libz.a
 else
-	cd ${EXTERNAL_ZLIB} && CFLAGS=-fPIC ./configure && ${MAKE} libz.a
+	cd ${EXTERNAL_ZLIB} && ${ZLIB_CFLAGS} ./configure && ${MAKE} libz.a
 endif
-
-ZLIB_INCLUDE=-I./${EXTERNAL_ZLIB}
 
 os_zlib_c := os_zlib/os_zlib.c
 os_zlib_o := $(os_zlib_c:.c=.o)
@@ -936,10 +1038,14 @@ os_zlib/%.o: os_zlib/%.c
 
 #### bzip2 ##########
 
+BZIP2_CFLAGS = CFLAGS="${EXTERNALS_COMMON_CFLAGS} -fpic -Wall -O2 -D_FILE_OFFSET_BITS=64"
+
 $(BZIP2_LIB):
-	cd ${EXTERNAL_BZIP2} && ${MAKE} CFLAGS="-fpic -Wall -O2 -D_FILE_OFFSET_BITS=64" libbz2.a
+	cd ${EXTERNAL_BZIP2} && ${MAKE} ${BZIP2_CFLAGS} libbz2.a
 
 #### SQLite #########
+
+SQLITE_CFLAGS = -fPIC ${EXTERNALS_COMMON_CFLAGS}
 
 sqlite_c = ${EXTERNAL_SQLITE}sqlite3.c
 sqlite_o = ${EXTERNAL_SQLITE}sqlite3.o
@@ -949,9 +1055,11 @@ $(SQLITE_LIB): $(sqlite_o)
 	${OSSEC_RANLIB} $@
 
 $(sqlite_o): $(sqlite_c)
-	${OSSEC_CC} ${OSSEC_CFLAGS} -w -fPIC -c $^ -o $@ -fPIC
+	${OSSEC_CC} ${SQLITE_CFLAGS} -c $^ -o $@
 
 #### cJSON #########
+
+CJSON_CFLAGS = -fPIC ${EXTERNALS_COMMON_CFLAGS}
 
 ifeq (${uname_S},Darwin)
 JSON_SHFLAGS=-install_name @rpath/libcjson.$(SHARED)
@@ -965,38 +1073,52 @@ $(JSON_LIB): ${cjson_o}
 	${OSSEC_RANLIB} $@
 
 ${EXTERNAL_JSON}%.o: ${EXTERNAL_JSON}%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -fPIC -c $^ -o $@
+	${OSSEC_CC} ${CJSON_CFLAGS} -c $^ -o $@
 
 #### libyaml ##########
+
+LIBYAML_CFLAGS = CFLAGS="-fPIC ${EXTERNALS_COMMON_CFLAGS}"
 
 ${LIBYAML_LIB}: $(EXTERNAL_LIBYAML)Makefile
 	$(MAKE) -C $(EXTERNAL_LIBYAML)
 
 $(EXTERNAL_LIBYAML)Makefile:
 ifeq (${TARGET},winagent)
-	cd $(EXTERNAL_LIBYAML) && CC=${MING_BASE}${CC} && CFLAGS=-fPIC ./configure --host=${MINGW_HOST} --enable-static=yes
+	cd $(EXTERNAL_LIBYAML) && CC=${MING_BASE}${CC} && ${LIBYAML_CFLAGS} ./configure --host=${MINGW_HOST} --enable-static=yes
 else
-	cd $(EXTERNAL_LIBYAML) && CFLAGS=-fPIC ./configure --enable-static=yes --enable-shared=no
+	cd $(EXTERNAL_LIBYAML) && ${LIBYAML_CFLAGS} ./configure --enable-static=yes --enable-shared=no
 endif
 
 #### curl ##########
+
+LIBCURL_CFLAGS = CFLAGS="-fPIC"
+LIBCURL_CPPFLAGS = CPPFLAGS="-fPIC -I${ROUTE_PATH}/${EXTERNAL_OPENSSL}include"
+LIBCURL_COMMON_CONFIGURE_FLAGS = --disable-ldap --without-libidn2 --enable-optimize
+
+# Common CFLAGS mapping to custom cURL flags
+ifneq (,$(findstring -w,$(EXTERNALS_COMMON_CFLAGS)))
+	LIBCURL_COMMON_CONFIGURE_FLAGS += --disable-warnings --disable-werror
+endif
+ifneq (,$(findstring -g,$(EXTERNALS_COMMON_CFLAGS)))
+	LIBCURL_COMMON_CONFIGURE_FLAGS += --enable-symbol-hiding --enable-debug
+endif
 
 ${LIBCURL_LIB}: $(EXTERNAL_CURL)Makefile
 	${MAKE} -C $(EXTERNAL_CURL)lib
 
 ifeq (${TARGET},winagent)
 $(EXTERNAL_CURL)Makefile:
-	cd $(EXTERNAL_CURL) && CFLAGS=-fPIC CC=${MING_BASE}${CC} ./configure --host=${MINGW_HOST} PREFIX=${MING_BASE} --enable-static=yes --disable-shared --with-winssl --disable-ldap --without-libidn2 && ${MAKE}
+	cd $(EXTERNAL_CURL) && ${LIBCURL_CFLAGS} CC=${MING_BASE}${CC} ./configure --host=${MINGW_HOST} PREFIX=${MING_BASE} ${LIBCURL_COMMON_CONFIGURE_FLAGS} --enable-static=yes --disable-shared --with-winssl
 else
 ifeq (${uname_S},Darwin)
 $(EXTERNAL_CURL)Makefile:
-	cd $(EXTERNAL_CURL) && ./configure --with-darwinssl --disable-ldap --without-libidn2
+	cd $(EXTERNAL_CURL) && ${LIBCURL_CFLAGS} ./configure ${LIBCURL_COMMON_CONFIGURE_FLAGS} --with-darwinssl --without-nghttp2
 else
 $(EXTERNAL_CURL)Makefile: $(OPENSSL_LIB)
 ifeq (${uname_S},Linux)
-	cd $(EXTERNAL_CURL) && CPPFLAGS="-fPIC -I${ROUTE_PATH}/${EXTERNAL_OPENSSL}include" LDFLAGS="-L${ROUTE_PATH}/${EXTERNAL_OPENSSL}" LIBS="-ldl -lpthread" ./configure --disable-ldap --without-libidn2 --without-libpsl --without-brotli
+	cd $(EXTERNAL_CURL) && ${LIBCURL_CPPFLAGS} LDFLAGS="-L${ROUTE_PATH}/${EXTERNAL_OPENSSL}" LIBS="-ldl -lpthread" ./configure ${LIBCURL_COMMON_CONFIGURE_FLAGS} --without-libpsl --without-brotli
 else
-	cd $(EXTERNAL_CURL) && CPPFLAGS="-fPIC -I${ROUTE_PATH}/${EXTERNAL_OPENSSL}include" LDFLAGS="-L${ROUTE_PATH}/${EXTERNAL_OPENSSL}" LIBS="-lpthread" ./configure --disable-ldap --without-libidn2
+	cd $(EXTERNAL_CURL) && ${LIBCURL_CPPFLAGS} LDFLAGS="-L${ROUTE_PATH}/${EXTERNAL_OPENSSL}" LIBS="-lpthread" ./configure ${LIBCURL_COMMON_CONFIGURE_FLAGS}
 endif
 endif
 endif
@@ -1004,13 +1126,13 @@ endif
 
 #### procps #########
 
-PROCPS_INCLUDE=-I./${EXTERNAL_PROCPS}
+PROCPS_CFLAGS = -fPIC ${EXTERNALS_COMMON_CFLAGS}
 
 procps_c := $(wildcard ${EXTERNAL_PROCPS}*.c)
 procps_o := $(procps_c:.c=.o)
 
 ${EXTERNAL_PROCPS}%.o: ${EXTERNAL_PROCPS}%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -fPIC -c $^ -o $@
+	${OSSEC_CC} ${PROCPS_CFLAGS} -c $^ -o $@
 
 $(PROCPS_LIB): ${procps_o}
 	${OSSEC_LINK} $@ $^
@@ -1018,15 +1140,19 @@ $(PROCPS_LIB): ${procps_o}
 
 #### Berkeley DB ######
 
+LIBDB_CFLAGS = CFLAGS="-fPIC ${EXTERNALS_COMMON_CFLAGS}"
+
 ifeq (${uname_S},Linux)
 ${DB_LIB}: $(EXTERNAL_LIBDB)Makefile
 	 ${MAKE} -C $(EXTERNAL_LIBDB) libdb.a
 
 $(EXTERNAL_LIBDB)Makefile:
-	cd ${EXTERNAL_LIBDB} && CPPFLAGS=-fPIC ../dist/configure --with-cryptography=no --disable-queue --disable-heap --disable-partition --disable-mutexsupport --disable-replication --disable-verify --disable-statistics ac_cv_func_pthread_yield=no
+	cd ${EXTERNAL_LIBDB} && ${LIBDB_CFLAGS} ../dist/configure --with-cryptography=no --disable-queue --disable-heap --disable-partition --disable-mutexsupport --disable-replication --disable-verify --disable-statistics ac_cv_func_pthread_yield=no
 endif
 
 #### libarchive ######
+
+LIBARCHIVE_CFLAGS = CFLAGS="-fPIC ${EXTERNALS_COMMON_CFLAGS}"
 
 ifneq (${TARGET},winagent)
 ifeq (${uname_S},Linux)
@@ -1034,7 +1160,7 @@ ${LIBARCHIVE_LIB}: $(EXTERNAL_LIBARCHIVE)Makefile
 	 ${MAKE} -C $(EXTERNAL_LIBARCHIVE)
 
 $(EXTERNAL_LIBARCHIVE)Makefile:
-	cd ${EXTERNAL_LIBARCHIVE} && CPPFLAGS=-fPIC ./configure --disable-acl --without-expat --without-iconv --without-xml2 --without-lz4 --without-lzma --without-zstd --without-bz2lib --without-openssl
+	cd ${EXTERNAL_LIBARCHIVE} && ${LIBARCHIVE_CFLAGS} ./configure --disable-acl --without-expat --without-iconv --without-xml2 --without-lz4 --without-lzma --without-zstd --without-bz2lib --without-openssl
 endif
 endif
 
@@ -1056,7 +1182,9 @@ LIBALPM_CFLAGS=-DSYSHOOKDIR=\"/usr/share/libalpm/hooks\" \
 			    -I${ROUTE_PATH}/${EXTERNAL_LIBARCHIVE}libarchive \
 				-I${ROUTE_PATH}/${EXTERNAL_OPENSSL}include \
 			    -I. \
-			    -fPIC
+			    -fPIC \
+			    ${EXTERNALS_COMMON_CFLAGS}
+
 ${LIBALPM_LIB}: $(EXTERNAL_PACMAN)configure
 	cd ${EXTERNAL_PACMAN}lib/libalpm && \
 	$(CC) -c *.c ${LIBALPM_CFLAGS} && \
@@ -1065,13 +1193,17 @@ endif
 
 #### Audit lib ####
 
+AUDIT_CFLAGS = CFLAGS="-fPIC ${EXTERNALS_COMMON_CFLAGS}"
+
 ${AUDIT_LIB}: $(EXTERNAL_AUDIT)Makefile
 	${MAKE} -C $(EXTERNAL_AUDIT)lib CC=$(CC)
 
 $(EXTERNAL_AUDIT)Makefile:
-	cd $(EXTERNAL_AUDIT) && ./autogen.sh && ./configure CFLAGS=-fPIC --with-libcap-ng=no
+	cd $(EXTERNAL_AUDIT) && ./autogen.sh && ./configure ${AUDIT_CFLAGS} --with-libcap-ng=no
 
 #### msgpack #########
+
+MSGPACK_CFLAGS = -fPIC ${EXTERNALS_COMMON_CFLAGS} -I${EXTERNAL_MSGPACK}include
 
 ifeq (,$(filter ${USE_MSGPACK_OPT},YES yes y Y 1))
         MSGPACK_ARCH=-march=i486
@@ -1082,7 +1214,7 @@ msgpack_c := $(wildcard ${EXTERNAL_MSGPACK}src/*.c)
 msgpack_o := $(msgpack_c:.c=.o)
 
 ${EXTERNAL_MSGPACK}src/%.o: ${EXTERNAL_MSGPACK}src/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} ${MSGPACK_ARCH} -fPIC -c $^ -o $@
+	${OSSEC_CC} ${MSGPACK_CFLAGS} ${MSGPACK_ARCH} -c $^ -o $@
 
 $(MSGPACK_LIB): ${msgpack_o}
 	${OSSEC_LINK} $@ $^
@@ -1091,23 +1223,24 @@ endif
 
 #### PCRE2 lib #########
 
-
+LIBPCRE2_CFLAGS = CFLAGS="-fPIC ${EXTERNALS_COMMON_CFLAGS}"
 
 $(LIBPCRE2_LIB):
 ifeq (${TARGET},winagent)
-	cd $(EXTERNAL_LIBPCRE2) && CFLAGS=-fPIC CC=${MING_BASE}${CC} ./configure --enable-jit=auto --host=${MINGW_HOST} --disable-shared && cp src/pcre2.h include/pcre2.h && ${MAKE}
+	cd $(EXTERNAL_LIBPCRE2) && ${LIBPCRE2_CFLAGS} CC=${MING_BASE}${CC} ./configure --enable-jit=auto --host=${MINGW_HOST} --disable-shared && cp src/pcre2.h include/pcre2.h && ${MAKE}
 else
-	cd $(EXTERNAL_LIBPCRE2) && CFLAGS=-fPIC ./configure --enable-jit=auto --disable-shared && cp src/pcre2.h include/pcre2.h && ${MAKE}
+	cd $(EXTERNAL_LIBPCRE2) && ${LIBPCRE2_CFLAGS} ./configure --enable-jit=auto --disable-shared && cp src/pcre2.h include/pcre2.h && ${MAKE}
 endif
 
 ### popt lib ###
 
+POPT_CFLAGS = CFLAGS="-fPIC ${EXTERNALS_COMMON_CFLAGS}"
 POPT_BUILD_DIR = $(EXTERNAL_POPT)build/
 
 $(POPT_LIB): $(POPT_BUILD_DIR)Makefile
 	 $(MAKE) -C $(POPT_BUILD_DIR)
 $(POPT_BUILD_DIR)Makefile:
-	mkdir -p $(POPT_BUILD_DIR) && cd $(POPT_BUILD_DIR) && cmake ..
+	mkdir -p $(POPT_BUILD_DIR) && cd $(POPT_BUILD_DIR) && cmake -E env ${POPT_CFLAGS} cmake ..
 
 ### rpm lib ###
 
@@ -1123,7 +1256,7 @@ RPM_LIB_PATHS = -L${ROUTE_PATH}/${EXTERNAL_OPENSSL} \
 				-L${ROUTE_PATH}/${EXTERNAL_POPT}/build/output/src/.libs/ \
 				-L${ROUTE_PATH}/${EXTERNAL_SQLITE}
 
-RPM_CFLAGS = -fPIC ${RPM_INC_PATHS} ${RPM_LIB_PATHS}
+RPM_CFLAGS = -fPIC ${RPM_INC_PATHS} ${RPM_LIB_PATHS} ${EXTERNALS_COMMON_CFLAGS}
 RPM_CC = gcc
 
 ${RPM_LIB}: ${RPM_BUILD_DIR}/Makefile
@@ -1134,12 +1267,14 @@ ${RPM_BUILD_DIR}/Makefile: ${OPENSSL_LIB} ${ZLIB_LIB} ${POPT_LIB} ${SQLITE_LIB}
 
 #### jemalloc ##########
 
+JEMALLOC_CFLAGS = CFLAGS="${EXTERNALS_COMMON_CFLAGS}"
+
 $(JEMALLOC_LIB):
 ifeq (${TARGET},server)
 ifneq ($(wildcard external/jemalloc/configure),)
-	cd ${EXTERNAL_JEMALLOC} && LDFLAGS=-s ./configure --disable-static --disable-cxx && ${MAKE}
+	cd ${EXTERNAL_JEMALLOC} && ${JEMALLOC_CFLAGS} LDFLAGS=-s ./configure --disable-static --disable-cxx && ${MAKE}
 else
-	cd ${EXTERNAL_JEMALLOC} && LDFLAGS=-s ./autogen.sh --disable-static --disable-cxx && ${MAKE}
+	cd ${EXTERNAL_JEMALLOC} && ${JEMALLOC_CFLAGS} LDFLAGS=-s ./autogen.sh --disable-static --disable-cxx && ${MAKE}
 endif
 endif
 
@@ -1662,7 +1797,7 @@ $(WAZUHEXT_LIB): $(EXTERNAL_LIBS)
 	$(OSSEC_SHARED) $(OSSEC_CFLAGS) $(WAZUH_SHFLAGS) -o $@ -Wl,-all_load $^ -Wl,-noall_load $(OSSEC_LIBS)
 else
 ifeq (${TARGET}, winagent)
-$(WAZUHEXT_LIB): $(EXTERNAL_LIBS)
+$(WAZUHEXT_LIB): $(EXTERNAL_LIBS) win32/version-dll.o
 	$(OSSEC_SHARED) $(OSSEC_CFLAGS) -o $@ -static-libgcc -Wl,--export-all-symbols -Wl,--whole-archive $^ -Wl,--no-whole-archive ${OSSEC_LIBS}
 else
 ifeq (${uname_S},SunOS)
@@ -1818,6 +1953,10 @@ active_response_programs = default-firewall-drop pf npf ipfw firewalld-drop disa
 $(active_response_programs): ${WAZUH_LIB} ${WAZUHEXT_LIB}
 
 # Minimal dependencies for building active responses programs
+AR_CFLAGS =
+ifneq (,$(findstring -g,$(OSSEC_CFLAGS)))
+	AR_CFLAGS += -g
+endif
 AR_PROGRAMS_DEPS = os_regex/os_regex.o os_regex/os_regex_free_pattern.o os_regex/os_regex_compile.o os_regex/os_match_free_pattern.o os_regex/os_regex_maps.o os_regex/os_regex_execute.o os_regex/os_regex_free_pattern.o os_regex/os_match_execute.o os_regex/os_match_compile.o shared/expression.o shared/randombytes.o shared/validate_op.o shared/regex_op.o shared/string_op.o shared/exec_op.o shared/file_op_proc.o shared/debug_op_proc.o shared/time_op.o shared/privsep_op.o shared/version_op.o os_xml/os_xml.o os_xml/os_xml_access.o os_regex/os_regex_strbreak.o os_net/os_net.o
 
 ifneq (,$(filter ${TEST},YES yes y Y 1))
@@ -1841,40 +1980,40 @@ active-response/%.o: active-response/%.c
 	${OSSEC_CC} ${OSSEC_CFLAGS} -I./active-response -DARGV0=\"active-responses\" -c $^ -o $@
 
 default-firewall-drop: active-response/firewalls/default-firewall-drop.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${OSSEC_CCBIN} ${AR_CFLAGS} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 pf: active-response/firewalls/pf.o  active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${OSSEC_CCBIN} ${AR_CFLAGS} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 npf: active-response/firewalls/npf.o  active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${OSSEC_CCBIN} ${AR_CFLAGS} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 ipfw: active-response/firewalls/ipfw.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${OSSEC_CCBIN} ${AR_CFLAGS} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 firewalld-drop: active-response/firewalld-drop.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${OSSEC_CCBIN} ${AR_CFLAGS} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 disable-account: active-response/disable-account.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${OSSEC_CCBIN} ${AR_CFLAGS} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 host-deny: active-response/host-deny.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${OSSEC_CCBIN} ${AR_CFLAGS} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 ip-customblock: active-response/ip-customblock.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${OSSEC_CCBIN} ${AR_CFLAGS} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 restart-wazuh: active-response/restart-wazuh.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${OSSEC_CCBIN} ${AR_CFLAGS} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 route-null: active-response/route-null.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${OSSEC_CCBIN} ${AR_CFLAGS} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 kaspersky: active-response/kaspersky.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${OSSEC_CCBIN} ${AR_CFLAGS} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 wazuh-slack: active-response/wazuh-slack.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${OSSEC_CCBIN} ${AR_CFLAGS} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 
 ### libwazuhshared.so #########
@@ -1886,7 +2025,7 @@ $(WAZUH_LIB): $(WAZUHEXT_LIB) $(AR_PROGRAMS_DEPS)
 	$(OSSEC_SHARED) $(OSSEC_CFLAGS) $(WAZUH_SHARED_SHFLAGS) -o $@ -Wl,-all_load $^ -Wl,-noall_load $(OSSEC_LIBS)
 else
 ifeq (${TARGET}, winagent)
-$(WAZUH_LIB): $(WAZUHEXT_LIB) $(AR_PROGRAMS_DEPS)
+$(WAZUH_LIB): $(WAZUHEXT_LIB) $(AR_PROGRAMS_DEPS) win32/version-dll.o
 	$(OSSEC_SHARED) $(OSSEC_CFLAGS) -UOSSECHIDS -o $@ -static-libgcc -Wl,--export-all-symbols -Wl,--whole-archive $^ -Wl,--no-whole-archive ${OSSEC_LIBS}
 else
 ifeq (${uname_S},SunOS)
@@ -2318,6 +2457,19 @@ test-rules:
 #### windows #######
 ####################
 
+ifneq (,${BUILD_VERSION})
+WIN_BUILD_VERSION=-DVER_PRODUCTVERSION_STR=${BUILD_VERSION}
+endif
+ifneq (,$(filter ${DISABLE_STRIP_SYMBOLS},YES yes y Y 1))
+WIN_BUILD_TYPE=-DVER_FILEFLAGS=VS_FF_DEBUG
+endif
+
+win32/version-dll.o: win32/version.rc
+	${OSSEC_WINDRES} ${WIN_BUILD_VERSION} ${WIN_BUILD_TYPE} -DVER_TYPE=VFT_DLL -i $< -o $@
+
+win32/version-app.o: win32/version.rc
+	${OSSEC_WINDRES} ${WIN_BUILD_VERSION} ${WIN_BUILD_TYPE} -DVER_TYPE=VFT_APP -i $< -o $@
+
 win32/icon.o: win32/icofile.rc
 	${OSSEC_WINDRES} -i $< -o $@
 
@@ -2336,22 +2488,22 @@ win32_ui_o := $(win32_ui_c:.c=.o)
 win32/ui/%.o: win32/ui/%.c
 	${OSSEC_CC} ${OSSEC_CFLAGS} -UOSSECHIDS -DARGV0=\"wazuh-win32ui\" -c $^ -o $@
 
-win32/wazuh-agent.exe: win32/icon.o win32/win_agent.o win32/win_service.o win32/win_utils.o ${syscheck_o} ${rootcheck_o} $(filter-out wazuh_modules/main.o, ${wmodulesd_o}) $(filter-out client-agent/main.o, $(filter-out client-agent/agentd.o, $(filter-out client-agent/event-forward.o, ${client_agent_o}))) $(filter-out logcollector/main.o, ${os_logcollector_o}) $(filter-out os_execd/main.o, ${os_execd_o}) active-response/active_responses.o monitord/rotate_log.o monitord/compress_log.o
+win32/wazuh-agent.exe: win32/icon.o win32/win_agent.o win32/win_service.o win32/win_utils.o ${syscheck_o} ${rootcheck_o} $(filter-out wazuh_modules/main.o, ${wmodulesd_o}) $(filter-out client-agent/main.o, $(filter-out client-agent/agentd.o, $(filter-out client-agent/event-forward.o, ${client_agent_o}))) $(filter-out logcollector/main.o, ${os_logcollector_o}) $(filter-out os_execd/main.o, ${os_execd_o}) active-response/active_responses.o monitord/rotate_log.o monitord/compress_log.o win32/version-app.o
 	${OSSEC_CCBIN} -DARGV0=\"wazuh-agent\" -DOSSECHIDS ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
-win32/wazuh-agent-eventchannel.exe: win32/icon.o win32/win_agent.o win32/win_service.o win32/win_utils.o $(filter-out syscheckd/main-event.o, ${syscheck_eventchannel_o}) ${rootcheck_o} $(filter-out wazuh_modules/main.o, ${wmodulesd_o}) $(filter-out client-agent/main.o, $(filter-out client-agent/agentd.o, $(filter-out client-agent/event-forward.o, ${client_agent_o}))) $(filter-out logcollector/main-event.o, ${os_logcollector_eventchannel_o}) $(filter-out os_execd/main.o, ${os_execd_o}) active-response/active_responses.o monitord/rotate_log.o monitord/compress_log.o
+win32/wazuh-agent-eventchannel.exe: win32/icon.o win32/win_agent.o win32/win_service.o win32/win_utils.o $(filter-out syscheckd/main-event.o, ${syscheck_eventchannel_o}) ${rootcheck_o} $(filter-out wazuh_modules/main.o, ${wmodulesd_o}) $(filter-out client-agent/main.o, $(filter-out client-agent/agentd.o, $(filter-out client-agent/event-forward.o, ${client_agent_o}))) $(filter-out logcollector/main-event.o, ${os_logcollector_eventchannel_o}) $(filter-out os_execd/main.o, ${os_execd_o}) active-response/active_responses.o monitord/rotate_log.o monitord/compress_log.o win32/version-app.o
 	${OSSEC_CCBIN} -DARGV0=\"wazuh-agent\" -DOSSECHIDS -DEVENTCHANNEL_SUPPORT ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
-win32/manage_agents.exe: win32/win_service_rk.o ${addagent_o}
+win32/manage_agents.exe: win32/version-app.o win32/win_service_rk.o ${addagent_o}
 	${OSSEC_CCBIN} -DARGV0=\"manage-agents\" -DMA ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
-win32/setup-windows.exe: win32/win_service_rk.o win32/setup-win.o win32/setup-shared.o
+win32/setup-windows.exe: win32/version-app.o win32/win_service_rk.o win32/setup-win.o win32/setup-shared.o
 	${OSSEC_CCBIN} -DARGV0=\"setup-windows\" ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
-win32/setup-syscheck.exe: win32/setup-syscheck.o win32/setup-shared.o
+win32/setup-syscheck.exe: win32/version-app.o win32/setup-syscheck.o win32/setup-shared.o
 	${OSSEC_CCBIN} -DARGV0=\"setup-syscheck\" ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
-win32/setup-iis.exe: win32/setup-iis.o
+win32/setup-iis.exe: win32/version-app.o win32/setup-iis.o
 	${OSSEC_CCBIN} -DARGV0=\"setup-iis\" ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 win32/ui_resource.o: win32/ui/win32ui.rc
@@ -2360,20 +2512,20 @@ win32/ui_resource.o: win32/ui/win32ui.rc
 win32/auth_resource.o: win32/agent-auth.rc
 	${OSSEC_WINDRES} -i $< -o $@
 
-win32/os_win32ui.exe: win32/ui_resource.o win32/win_service_rk.o ${win32_ui_o}
-	${OSSEC_CCBIN} -DARGV0=\"wazuh-win32ui\" ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -mwindows -o $@
+win32/os_win32ui.exe: win32/ui_resource.o win32/win_service_rk.o ${win32_ui_o} win32/version-app.o
+	${OSSEC_CCBIN} -DARGV0=\"wazuh-win32ui\" ${AR_CFLAGS} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -mwindows -o $@
 
-win32/agent-auth.exe: win32/auth_resource.o win32/win_service_rk.o os_auth/main-client.o os_auth/ssl.o os_auth/main-client.o os_auth/check_cert.o addagent/validate.o
-	${OSSEC_CCBIN} -DARGV0=\"agent-auth\" -DOSSECHIDS ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -lshlwapi -lwsock32 -lsecur32 -lws2_32 -flto -o $@
+win32/agent-auth.exe: win32/auth_resource.o win32/win_service_rk.o os_auth/main-client.o os_auth/ssl.o os_auth/main-client.o os_auth/check_cert.o addagent/validate.o win32/version-app.o
+	${OSSEC_CCBIN} -DARGV0=\"agent-auth\" -DOSSECHIDS ${AR_CFLAGS} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -lshlwapi -lwsock32 -lsecur32 -lws2_32 -flto -o $@
 
-win32/restart-wazuh.exe: ${WAZUH_LIB} ${WAZUHEXT_LIB} active-response/restart-wazuh.o active-response/active_responses.o
-	${OSSEC_CCBIN} -DARGV0=\"restart-wazuh\" ${AR_LDFLAGS} $^ -s -o $@
+win32/restart-wazuh.exe: ${WAZUH_LIB} ${WAZUHEXT_LIB} active-response/restart-wazuh.o active-response/active_responses.o win32/version-app.o
+	${OSSEC_CCBIN} -DARGV0=\"restart-wazuh\" ${AR_CFLAGS} ${AR_LDFLAGS} $^ -o $@
 
-win32/route-null.exe: ${WAZUH_LIB} ${WAZUHEXT_LIB} active-response/route-null.o active-response/active_responses.o
-	${OSSEC_CCBIN} -DARGV0=\"route-null\" ${AR_LDFLAGS} $^ -s -o $@
+win32/route-null.exe: ${WAZUH_LIB} ${WAZUHEXT_LIB} active-response/route-null.o active-response/active_responses.o win32/version-app.o
+	${OSSEC_CCBIN} -DARGV0=\"route-null\" ${AR_CFLAGS} ${AR_LDFLAGS} $^ -o $@
 
-win32/netsh.exe: ${WAZUH_LIB} ${WAZUHEXT_LIB} active-response/netsh.o active-response/active_responses.o
-	${OSSEC_CCBIN} -DARGV0=\"netsh\" ${AR_LDFLAGS} $^ -s -o $@
+win32/netsh.exe: ${WAZUH_LIB} ${WAZUHEXT_LIB} active-response/netsh.o active-response/active_responses.o win32/version-app.o
+	${OSSEC_CCBIN} -DARGV0=\"netsh\" ${AR_CFLAGS} ${AR_LDFLAGS} $^ -o $@
 
 ####################
 #### Clean #########
@@ -2413,11 +2565,11 @@ ifneq ($(wildcard external/libdb/build_unix/*),)
 endif
 
 ifneq ($(wildcard external/libarchive/Makefile),)
-	cd ${EXTERNAL_LIBARCHIVE} && ${MAKE} clean
+	cd ${EXTERNAL_LIBARCHIVE} && ${MAKE} clean && ${MAKE} distclean
 endif
 
 ifneq ($(wildcard external/jemalloc/Makefile),)
-	cd ${EXTERNAL_JEMALLOC} && ${MAKE} clean
+	cd ${EXTERNAL_JEMALLOC} && ${MAKE} clean && ${MAKE} distclean
 endif
 
 ifneq ($(wildcard external/pacman/lib/libalpm/*),)
@@ -2475,6 +2627,7 @@ clean-internals: clean-unit-tests
 	rm -rf $(SYSINFO)build
 	rm -rf libwazuhext
 	rm -f libgcc_s.so.1
+	rm -rf ${SYMBOLS_PATH}/*
 
 clean-unit-tests:
 	rm -f ${wrappers_syscheck_o}
@@ -2545,6 +2698,7 @@ clean-windows:
 	rm -f ${WINDOWS_BINS}
 	rm -f win32/wazuh-agent-*.exe
 	rm -f win32/libwinpthread-1.dll
+	rm -f win32/version-*.o
 	rm -f win32/VERSION
 	rm -f win32/REVISION
 
