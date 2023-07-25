@@ -1692,10 +1692,12 @@ def test_validate_wazuh_xml(mock_remote_commands, mock_unchanged_limits):
 
 
 @pytest.mark.parametrize('effect, expected_exception', [
-    (utils.ExpatError, 1113)
+    (utils.ExpatError, 1113),
+    (None, 1113)
 ])
 def test_validate_wazuh_xml_ko(effect, expected_exception):
-    """Tests validate_wazuh_xml function works when open function raises an exception.
+    """Check all errors that can be raised by the function validate_wazuh_xml.
+
     Parameters
     ----------
     effect : Exception
@@ -1703,11 +1705,15 @@ def test_validate_wazuh_xml_ko(effect, expected_exception):
     expected_exception
         Expected code when triggering the exception.
     """
-    input_file = os.path.join(test_files_path, 'test_rules.xml')
+    if effect is not None:
+        input_file = os.path.join(test_files_path, 'test_rules.xml')
 
-    with patch('wazuh.core.utils.load_wazuh_xml', side_effect=effect):
-        with pytest.raises(WazuhException, match=f'.* {expected_exception} .*'):
-            utils.validate_wazuh_xml(input_file)
+        with patch('wazuh.core.utils.load_wazuh_xml', side_effect=effect):
+            with pytest.raises(WazuhException, match=f'.* {expected_exception} .*'):
+                utils.validate_wazuh_xml(input_file)
+
+    with pytest.raises(WazuhException, match=f'.* {expected_exception} .*'):
+        utils.validate_wazuh_xml('{"body": "<ossec_config></ossec_config>}')
 
 
 @patch('wazuh.core.utils.full_copy')
